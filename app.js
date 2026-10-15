@@ -66,6 +66,11 @@
   const modalSubtitle = $('#modal-subtitle');
   const btnCancelExport = $('#btn-cancel-export');
   const btnDownload = $('#btn-download');
+  const btnCloseExport = $('#btn-close-export');
+  const btnFinishExport = $('#btn-finish-export');
+  const modalActionsDone = $('#modal-actions-done');
+  const exportModalIcon = $('#export-modal .modal-icon');
+  const exportModalBackdrop = $('#export-modal .modal-backdrop');
 
   const emptyState = $('#empty-state');
   const loadingModal = $('#loading-modal');
@@ -648,15 +653,22 @@
 
     state.exportCancelled = false;
     exportModal.classList.remove('hidden');
-    btnDownload.classList.add('hidden');
+    if (modalActionsDone) modalActionsDone.classList.add('hidden');
     btnCancelExport.classList.remove('hidden');
     modalTitle.textContent = 'Exportation en cours...';
     modalSubtitle.textContent = 'Préparation des frames';
     exportProgress.style.width = '0%';
     exportPercent.textContent = '0%';
 
-    const modalIcon = $('.modal-icon');
-    modalIcon.classList.remove('done');
+    if (exportModalIcon) {
+      exportModalIcon.classList.remove('done');
+      exportModalIcon.innerHTML = `
+        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 6v6l4 2" />
+        </svg>
+      `;
+    }
 
     const w = state.gifWidth;
     const h = state.gifHeight;
@@ -745,12 +757,24 @@
     gif.on('finished', (blob) => {
       if (state.exportCancelled) return;
 
-      const url = URL.createObjectURL(blob);
-      btnDownload.href = url;
-      btnDownload.classList.remove('hidden');
-      btnCancelExport.classList.add('hidden');
+      if (state.exportBlobUrl) {
+        URL.revokeObjectURL(state.exportBlobUrl);
+      }
+      state.exportBlobUrl = URL.createObjectURL(blob);
+      btnDownload.href = state.exportBlobUrl;
 
-      modalIcon.classList.add('done');
+      btnCancelExport.classList.add('hidden');
+      if (modalActionsDone) modalActionsDone.classList.remove('hidden');
+
+      if (exportModalIcon) {
+        exportModalIcon.classList.add('done');
+        exportModalIcon.innerHTML = `
+          <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="8 12 11 15 16 9" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        `;
+      }
       modalTitle.textContent = 'Exportation terminée !';
       const sizeMB = (blob.size / (1024 * 1024)).toFixed(2);
       modalSubtitle.textContent = `Taille: ${sizeMB} Mo`;
@@ -855,18 +879,23 @@
     }
   });
 
-  btnExport.addEventListener('click', exportGif);
-
-  btnCancelExport.addEventListener('click', () => {
-    state.exportCancelled = true;
-    exportModal.classList.add('hidden');
-  });
-
-  $('.modal-backdrop').addEventListener('click', () => {
-    if (btnDownload.classList.contains('hidden')) {
+  function closeExportModal() {
+    if (modalActionsDone && modalActionsDone.classList.contains('hidden')) {
       state.exportCancelled = true;
     }
     exportModal.classList.add('hidden');
+  }
+
+  btnExport.addEventListener('click', exportGif);
+  btnCancelExport.addEventListener('click', closeExportModal);
+  if (btnCloseExport) btnCloseExport.addEventListener('click', closeExportModal);
+  if (btnFinishExport) btnFinishExport.addEventListener('click', closeExportModal);
+  if (exportModalBackdrop) exportModalBackdrop.addEventListener('click', closeExportModal);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !exportModal.classList.contains('hidden')) {
+      closeExportModal();
+    }
   });
 
   if (chkTransparent) {

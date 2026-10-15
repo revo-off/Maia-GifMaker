@@ -110,7 +110,8 @@ label,
 .playback-btn,
 .custom-checkbox-wrap,
 .progress-bar-container,
-.modal-backdrop {
+.modal-backdrop,
+.modal-close {
   cursor: var(--cursor-pointer) !important;
 }
 
@@ -1390,6 +1391,61 @@ label,
 .btn-download:hover {
   transform: translateY(-2px) scale(1.04);
   box-shadow: 0 14px 36px rgba(255, 84, 30, 0.5);
+}
+
+.modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--text-secondary);
+  font-size: 1.4rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-bounce);
+  padding: 0;
+  z-index: 10;
+}
+
+.modal-close:hover {
+  background: #ffffff;
+  color: var(--danger);
+  transform: scale(1.12);
+  box-shadow: 0 4px 14px rgba(225, 29, 72, 0.28);
+  border-color: rgba(225, 29, 72, 0.35);
+}
+
+.modal-close:active {
+  transform: scale(0.95);
+}
+
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  margin-top: var(--space-sm);
+}
+
+.modal-actions .btn-download {
+  margin-top: 0;
+  width: 100%;
+  justify-content: center;
+}
+
+.modal-actions .btn-cancel {
+  margin-top: 0;
+  padding: var(--space-xs) var(--space-xl);
+  font-size: 0.85rem;
 }
 
 @media (max-width: 900px) {

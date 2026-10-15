@@ -216,6 +216,7 @@
   <div id="export-modal" class="modal hidden">
     <div class="modal-backdrop"></div>
     <div class="modal-content">
+      <button id="btn-close-export" class="modal-close" aria-label="Fermer" title="Fermer">&times;</button>
       <div class="modal-icon">
         <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5">
           <circle cx="12" cy="12" r="10" />
@@ -228,21 +229,21 @@
         <div class="export-progress-fill" id="export-progress"></div>
       </div>
       <span class="export-percent" id="export-percent">0%</span>
-      <button id="btn-cancel-export" class="btn-cancel">Annuler</button>
-      <a id="btn-download" class="btn-download hidden" download="maia-gifmaker-export.gif">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-          <polyline points="7 10 12 15 17 10" />
-          <line x1="12" y1="15" x2="12" y2="3" />
-        </svg>
-        <span>Télécharger le GIF</span>
-      </a>
+      <div id="modal-actions-done" class="modal-actions hidden">
+        <a id="btn-download" class="btn-download" download="maia-gifmaker-export.gif">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          <span>Télécharger le GIF</span>
+        </a>
+      </div>
     </div>
-  </div>
 
-  <script src="lib/gifuct-js.min.js"></script>
-  <script src="lib/gif.js"></script>
-  <script src="app.js"></script>
+    <script src="lib/gifuct-js.min.js"></script>
+    <script src="lib/gif.js"></script>
+    <script src="app.js"></script>
 </body>
 
 </html>
