@@ -331,15 +331,18 @@ body {
 }
 
 .logo-icon {
-  color: var(--sunset-orange);
-  filter: drop-shadow(0 2px 8px rgba(255, 84, 30, 0.4));
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 8px rgba(255, 84, 30, 0.35));
   flex-shrink: 0;
+  display: block;
   animation: pulseLogo 3s ease-in-out infinite;
 }
 
 @keyframes pulseLogo {
-  0%, 100% { transform: scale(1); filter: drop-shadow(0 2px 8px rgba(255, 84, 30, 0.4)); }
-  50% { transform: scale(1.06); filter: drop-shadow(0 4px 14px rgba(255, 45, 117, 0.6)); }
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 2px 8px rgba(255, 84, 30, 0.35)); }
+  50% { transform: scale(1.08); filter: drop-shadow(0 4px 14px rgba(255, 45, 117, 0.55)); }
 }
 
 .logo-text {
