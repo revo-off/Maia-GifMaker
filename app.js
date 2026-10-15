@@ -64,10 +64,8 @@
   const exportPercent = $('#export-percent');
   const modalTitle = $('#modal-title');
   const modalSubtitle = $('#modal-subtitle');
-  const btnCancelExport = $('#btn-cancel-export');
   const btnDownload = $('#btn-download');
   const btnCloseExport = $('#btn-close-export');
-  const btnFinishExport = $('#btn-finish-export');
   const modalActionsDone = $('#modal-actions-done');
   const exportModalIcon = $('#export-modal .modal-icon');
   const exportModalBackdrop = $('#export-modal .modal-backdrop');
@@ -654,7 +652,6 @@
     state.exportCancelled = false;
     exportModal.classList.remove('hidden');
     if (modalActionsDone) modalActionsDone.classList.add('hidden');
-    btnCancelExport.classList.remove('hidden');
     modalTitle.textContent = 'Exportation en cours...';
     modalSubtitle.textContent = 'Préparation des frames';
     exportProgress.style.width = '0%';
@@ -762,8 +759,6 @@
       }
       state.exportBlobUrl = URL.createObjectURL(blob);
       btnDownload.href = state.exportBlobUrl;
-
-      btnCancelExport.classList.add('hidden');
       if (modalActionsDone) modalActionsDone.classList.remove('hidden');
 
       if (exportModalIcon) {
@@ -887,9 +882,7 @@
   }
 
   btnExport.addEventListener('click', exportGif);
-  btnCancelExport.addEventListener('click', closeExportModal);
   if (btnCloseExport) btnCloseExport.addEventListener('click', closeExportModal);
-  if (btnFinishExport) btnFinishExport.addEventListener('click', closeExportModal);
   if (exportModalBackdrop) exportModalBackdrop.addEventListener('click', closeExportModal);
 
   document.addEventListener('keydown', (e) => {
