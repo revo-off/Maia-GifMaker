@@ -4,31 +4,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description"
-    content="Maia GifMaker - Remplacez le fond vert de vos GIFs avec vos propres images, vidéos ou GIFs. Outil gratuit de chroma key en ligne.">
-  <title>Maia GifMaker — Chroma Key GIF Editor</title>
+  <title>Goofy - Gifmakerbey</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800;900&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-  <!-- Ambient background: fiery orange aura, violet/pink reflections, floating bubbles & sparkles -->
   <div class="ambient-scene" aria-hidden="true">
-    <!-- Big fiery orange aura blob with violet reflections and lime-green rim (as in reference) -->
     <div class="aura-orb orb-primary">
       <div class="orb-core"></div>
       <div class="orb-lime-rim"></div>
       <div class="orb-star star-1">✦</div>
       <div class="orb-star star-2">✦</div>
     </div>
-    <!-- Secondary glowing peach-rose orb in bottom corner -->
     <div class="aura-orb orb-secondary"></div>
-    <!-- Tertiary violet-pink aura on left side -->
     <div class="aura-orb orb-tertiary"></div>
 
-    <!-- Floating bubbles with specular reflections -->
     <div class="floating-bubble bubble-1"></div>
     <div class="floating-bubble bubble-2"></div>
     <div class="floating-bubble bubble-3"></div>
@@ -54,7 +49,7 @@
         <circle cx="12" cy="12" r="4" />
         <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
       </svg>
-      <span class="logo-text">Maia <span class="logo-accent">GifMaker</span></span>
+      <span class="logo-text">Goofy <span class="logo-accent">Gifmakerbey</span></span>
     </div>
     <div class="header-right">
       <button id="btn-reset" class="header-btn" title="Réinitialiser">
@@ -83,6 +78,18 @@
             <div class="spinner-small"></div>
             <span>Chargement...</span>
           </div>
+        </div>
+
+        <div class="option-row" id="row-transparent">
+          <label class="custom-checkbox-wrap" for="chk-transparent">
+            <input type="checkbox" id="chk-transparent" class="custom-checkbox">
+            <span class="checkbox-box">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </span>
+            <span class="checkbox-text">Fond transparent</span>
+          </label>
         </div>
       </section>
 

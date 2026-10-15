@@ -10,6 +10,8 @@
   const state = {
     catalog: [],          // GIF catalog entries
     selectedGifId: null,  // Currently selected GIF id
+    selectedEntry: null,  // Currently selected catalog entry
+    transparentBackground: false, // Whether transparent background version is selected
     gifFrames: [],        // Decoded GIF frames (ImageData[])
     gifDelays: [],        // Frame delays in ms
     gifWidth: 0,
@@ -37,8 +39,9 @@
   const bgCanvas = document.createElement('canvas');
   const bgCtx = bgCanvas.getContext('2d');
 
-  // Gallery
+  // Gallery & Options
   const gifGallery = $('#gif-gallery');
+  const chkTransparent = $('#chk-transparent');
 
   // Upload elements (background only)
   const uploadBg = $('#upload-bg');
@@ -125,13 +128,13 @@
       // Handle disposal
       if (i > 0) {
         const prevFrame = rawFrames[i - 1];
-        if (prevFrame.disposalType === 2) {
+        if (prevFrame.disposalType === 2 || prevFrame.disposalType === 0 || (dims.width === width && dims.height === height)) {
           // Restore to background
           fullCtx.clearRect(0, 0, width, height);
         } else if (prevFrame.disposalType === 3) {
           // Restore to previous - for simplicity, we just keep the previous
         }
-        // disposalType 0 or 1: do not dispose (keep previous)
+        // disposalType 1: do not dispose (keep previous)
       }
 
       // Draw patch onto full canvas
@@ -247,6 +250,12 @@
     });
   }
 
+  function getGifFilename(entry, transparent) {
+    if (!entry) return null;
+    const baseName = entry.file.replace(/^gs/, '');
+    return transparent ? baseName : (entry.file.startsWith('gs') ? entry.file : 'gs' + baseName);
+  }
+
   async function selectGif(entry) {
     // Deselect previous
     const prev = gifGallery.querySelector('.gif-card.selected');
@@ -254,11 +263,14 @@
 
     // Select new
     state.selectedGifId = entry.id;
+    state.selectedEntry = entry;
     const card = gifGallery.querySelector(`[data-id="${entry.id}"]`);
     if (card) card.classList.add('selected');
 
-    // Load the GIF
-    await loadGifFromUrl(`gifs/${entry.file}`);
+    // Load the GIF (with or without 'gs' according to Fond transparent checkbox)
+    const isTransparent = chkTransparent ? chkTransparent.checked : false;
+    const filename = getGifFilename(entry, isTransparent);
+    await loadGifFromUrl(`gifs/${filename}`);
   }
 
   // ── Background Loading ──
@@ -436,12 +448,6 @@
   function drawBackground(targetCtx, w, h, frameIndex) {
     if (!state.bgType) return;
 
-    const bbox = state.trackingData && state.trackingData[frameIndex];
-    if (!bbox) {
-      // Green screen is not visible in this frame
-      return;
-    }
-
     let bgSource = null;
     let bgW = w;
     let bgH = h;
@@ -468,27 +474,42 @@
 
     targetCtx.save();
 
-    // Clip strictly to green screen bounding box (with slight margin for smooth edge blending)
-    targetCtx.beginPath();
-    targetCtx.rect(bbox.minX - 1, bbox.minY - 1, bbox.w + 2, bbox.h + 2);
-    targetCtx.clip();
+    if (state.transparentBackground) {
+      // In transparent mode, draw background covering the canvas behind the transparent GIF
+      const coverScale = Math.max(w / bgW, h / bgH);
+      const drawW = bgW * coverScale;
+      const drawH = bgH * coverScale;
+      targetCtx.drawImage(bgSource, (w - drawW) / 2, (h - drawH) / 2, drawW, drawH);
+    } else {
+      // In green screen mode, track and scale to the green screen card
+      const bbox = state.trackingData && state.trackingData[frameIndex];
+      if (!bbox) {
+        targetCtx.restore();
+        return;
+      }
 
-    // Center and rotate to match the green screen orientation
-    targetCtx.translate(bbox.cx, bbox.cy);
-    if (bbox.angle) {
-      targetCtx.rotate(bbox.angle);
+      // Clip strictly to green screen bounding box (with slight margin for smooth edge blending)
+      targetCtx.beginPath();
+      targetCtx.rect(bbox.minX - 1, bbox.minY - 1, bbox.w + 2, bbox.h + 2);
+      targetCtx.clip();
+
+      // Center and rotate to match the green screen orientation
+      targetCtx.translate(bbox.cx, bbox.cy);
+      if (bbox.angle) {
+        targetCtx.rotate(bbox.angle);
+      }
+
+      // Scale to cover the green screen area
+      const cos = Math.abs(Math.cos(bbox.angle || 0));
+      const sin = Math.abs(Math.sin(bbox.angle || 0));
+      const targetW = bbox.w * cos + bbox.h * sin;
+      const targetH = bbox.w * sin + bbox.h * cos;
+      const coverScale = Math.max(targetW / bgW, targetH / bgH);
+      const drawW = bgW * coverScale;
+      const drawH = bgH * coverScale;
+
+      targetCtx.drawImage(bgSource, -drawW / 2, -drawH / 2, drawW, drawH);
     }
-
-    // Scale to cover the green screen area
-    const cos = Math.abs(Math.cos(bbox.angle || 0));
-    const sin = Math.abs(Math.sin(bbox.angle || 0));
-    const targetW = bbox.w * cos + bbox.h * sin;
-    const targetH = bbox.w * sin + bbox.h * cos;
-    const coverScale = Math.max(targetW / bgW, targetH / bgH);
-    const drawW = bgW * coverScale;
-    const drawH = bgH * coverScale;
-
-    targetCtx.drawImage(bgSource, -drawW / 2, -drawH / 2, drawW, drawH);
 
     targetCtx.restore();
   }
@@ -506,10 +527,18 @@
     // Clear canvas
     ctx.clearRect(0, 0, w, h);
 
-    // Draw background tracked & scaled to the green screen
+    // Draw background
     drawBackground(ctx, w, h, frameIndex);
 
-    // Draw the GIF frame onto temp canvas
+    // If transparent background mode, draw frame directly
+    if (state.transparentBackground) {
+      tempCtx.clearRect(0, 0, w, h);
+      tempCtx.putImageData(frame, 0, 0);
+      ctx.drawImage(tempCanvas, 0, 0);
+      return;
+    }
+
+    // Green screen mode: apply chroma key
     tempCtx.clearRect(0, 0, w, h);
     tempCtx.putImageData(frame, 0, 0);
 
@@ -654,33 +683,39 @@
 
       renderCtx.clearRect(0, 0, w, h);
 
-      // Draw tracked background
+      // Draw background
       drawBackground(renderCtx, w, h, i);
 
-      // Chroma key
-      renderTempCtx.clearRect(0, 0, w, h);
-      renderTempCtx.putImageData(frame, 0, 0);
-      const frameData = renderTempCtx.getImageData(0, 0, w, h);
-      const data = frameData.data;
+      if (state.transparentBackground) {
+        renderTempCtx.clearRect(0, 0, w, h);
+        renderTempCtx.putImageData(frame, 0, 0);
+        renderCtx.drawImage(renderTemp, 0, 0);
+      } else {
+        // Chroma key
+        renderTempCtx.clearRect(0, 0, w, h);
+        renderTempCtx.putImageData(frame, 0, 0);
+        const frameData = renderTempCtx.getImageData(0, 0, w, h);
+        const data = frameData.data;
 
-      for (let j = 0; j < data.length; j += 4) {
-        const r = data[j];
-        const g = data[j + 1];
-        const b = data[j + 2];
-        const a = data[j + 3];
-        if (a === 0) continue;
+        for (let j = 0; j < data.length; j += 4) {
+          const r = data[j];
+          const g = data[j + 1];
+          const b = data[j + 2];
+          const a = data[j + 3];
+          if (a === 0) continue;
 
-        const dist = colorDistance(r, g, b, chromaColor.r, chromaColor.g, chromaColor.b);
-        if (dist < tolerance) {
-          data[j + 3] = 0;
-        } else if (dist < tolerance * 1.4) {
-          const blend = (dist - tolerance) / (tolerance * 0.4);
-          data[j + 3] = Math.round(a * Math.min(1, blend));
+          const dist = colorDistance(r, g, b, chromaColor.r, chromaColor.g, chromaColor.b);
+          if (dist < tolerance) {
+            data[j + 3] = 0;
+          } else if (dist < tolerance * 1.4) {
+            const blend = (dist - tolerance) / (tolerance * 0.4);
+            data[j + 3] = Math.round(a * Math.min(1, blend));
+          }
         }
-      }
 
-      renderTempCtx.putImageData(frameData, 0, 0);
-      renderCtx.drawImage(renderTemp, 0, 0);
+        renderTempCtx.putImageData(frameData, 0, 0);
+        renderCtx.drawImage(renderTemp, 0, 0);
+      }
 
       const delay = (state.gifDelays[i] || 100) / speed;
       gif.addFrame(renderCtx, { copy: true, delay: Math.max(20, Math.round(delay)) });
@@ -823,12 +858,28 @@
     exportModal.classList.add('hidden');
   });
 
+  // Transparent Background Toggle
+  if (chkTransparent) {
+    chkTransparent.addEventListener('change', async () => {
+      state.transparentBackground = chkTransparent.checked;
+      const entry = state.selectedEntry || (state.catalog.length > 0 ? (state.catalog.find(e => e.id === state.selectedGifId) || state.catalog[0]) : null);
+      if (entry) {
+        state.selectedEntry = entry;
+        const filename = getGifFilename(entry, chkTransparent.checked);
+        await loadGifFromUrl(`gifs/${filename}`);
+      }
+    });
+  }
+
   // Reset
   btnReset.addEventListener('click', () => {
     stopAnimation();
 
     // Reset GIF selection
     state.selectedGifId = null;
+    state.selectedEntry = null;
+    state.transparentBackground = false;
+    if (chkTransparent) chkTransparent.checked = false;
     state.gifFrames = [];
     state.gifDelays = [];
     state.currentFrame = 0;
