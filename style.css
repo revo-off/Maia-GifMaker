@@ -1,16 +1,7 @@
-/* ==========================================================================
-   Maia GifMaker — Dreamy Sunset & Aura Aesthetic
-   Style inspired by: Soft pink background, fiery orange aura, violet reflections,
-   floating glass bubbles & sparkling golden stars.
-   ========================================================================== */
-
-/* --- CSS Variables & Design Tokens --- */
 :root {
-  /* Dreamy Palette */
   --bg-canvas: #f8a2b8;
   --bg-canvas-gradient: radial-gradient(circle at 18% 18%, #ffbed0 0%, #f79cb4 42%, #ee8ba3 100%);
 
-  /* Glassmorphism Surface Tokens */
   --glass-surface: rgba(255, 255, 255, 0.62);
   --glass-surface-hover: rgba(255, 255, 255, 0.78);
   --glass-surface-active: rgba(255, 255, 255, 0.9);
@@ -21,7 +12,6 @@
   --glass-border-subtle: rgba(255, 255, 255, 0.45);
   --glass-border-glow: rgba(255, 94, 54, 0.45);
 
-  /* Sunset & Reflection Accents */
   --sunset-orange: #ff541e;
   --sunset-peach: #ff7b2b;
   --sunset-amber: #ffa033;
@@ -32,13 +22,11 @@
   --gold-star: #ffd166;
   --cream-butter: #fff5cf;
 
-  /* Typography Colors (High Contrast on Pink/Glass) */
-  --text-primary: #380724;       /* Deep rich midnight plum */
-  --text-secondary: #6e2248;     /* Warm berry plum */
-  --text-tertiary: #9b486d;      /* Muted rose mauve */
-  --text-on-accent: #fffbee;     /* Cream white on gradient buttons */
+  --text-primary: #380724;
+  --text-secondary: #6e2248;
+  --text-tertiary: #9b486d;
+  --text-on-accent: #fffbee;
 
-  /* Functional */
   --accent: #ff4820;
   --accent-gradient: linear-gradient(135deg, #ff541e 0%, #ff2d75 52%, #7c3aed 100%);
   --accent-gradient-hover: linear-gradient(135deg, #ff6a38 0%, #ff4082 52%, #8b5cf6 100%);
@@ -47,7 +35,6 @@
   --danger: #e11d48;
   --danger-hover: #be123c;
 
-  /* Spacing */
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 12px;
@@ -56,34 +43,30 @@
   --space-2xl: 32px;
   --space-3xl: 48px;
 
-  /* Radii */
   --radius-sm: 8px;
   --radius-md: 14px;
   --radius-lg: 20px;
   --radius-xl: 28px;
   --radius-full: 9999px;
 
-  /* Shadows */
   --shadow-sm: 0 2px 6px rgba(180, 40, 80, 0.08);
   --shadow-md: 0 8px 20px rgba(180, 40, 80, 0.12);
   --shadow-lg: 0 16px 40px rgba(180, 40, 80, 0.16);
   --shadow-sunset: 0 10px 30px rgba(255, 84, 30, 0.32);
 
-  /* Transitions */
   --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-base: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-bounce: 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 
-  /* Layout */
-  --header-height: 64px;
   --panel-width: 330px;
 
-  /* Fonts */
+  --cursor-default: url('misc/cursor-default.png') 5 0, auto;
+  --cursor-pointer: url('misc/cursor-pointer.png') 11 0, pointer;
+
   --font-display: 'Outfit', sans-serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-/* --- Global Reset --- */
 *,
 *::before,
 *::after {
@@ -96,6 +79,7 @@ html {
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  cursor: var(--cursor-default);
 }
 
 body {
@@ -106,30 +90,112 @@ body {
   height: 100vh;
   width: 100vw;
   position: relative;
+  cursor: var(--cursor-default);
+}
+
+button,
+a,
+input,
+select,
+textarea,
+label,
+[role="button"],
+.gif-card,
+.upload-zone,
+.slider,
+.btn-remove,
+.btn-cancel,
+.btn-download,
+.btn-export,
+.playback-btn,
+.custom-checkbox-wrap,
+.progress-bar-container,
+.modal-backdrop {
+  cursor: var(--cursor-pointer) !important;
+}
+
+.slider::-webkit-slider-thumb {
+  cursor: var(--cursor-pointer) !important;
+}
+
+.slider::-moz-range-thumb {
+  cursor: var(--cursor-pointer) !important;
+}
+
+.water-ripple {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 99999;
+  transform: translate(-50%, -50%) scale(0.2);
+  border: 2.5px solid rgba(244, 96, 135, 0.85);
+  background: radial-gradient(circle, rgba(255, 179, 203, 0.45) 0%, rgba(244, 96, 135, 0.18) 50%, transparent 75%);
+  box-shadow: 0 0 14px rgba(244, 96, 135, 0.45), inset 0 0 10px rgba(255, 213, 107, 0.4);
+  animation: rippleWater 0.7s cubic-bezier(0.12, 0.75, 0.35, 1) forwards;
+}
+
+.water-ripple::after {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 179, 203, 0.7);
+  animation: rippleWaterSecondary 0.7s cubic-bezier(0.12, 0.75, 0.35, 1) forwards;
+}
+
+@keyframes rippleWater {
+  0% {
+    width: 6px;
+    height: 6px;
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.1);
+  }
+
+  50% {
+    opacity: 0.8;
+  }
+
+  100% {
+    width: 130px;
+    height: 130px;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes rippleWaterSecondary {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.4);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
 }
 
 .hidden {
   display: none !important;
 }
 
-/* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: rgba(180, 40, 80, 0.18);
   border-radius: var(--radius-full);
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(180, 40, 80, 0.32);
 }
 
-/* ==========================================================================
-   Ambient Background: Aura Orbs, Lime Rim, Sparkles & Floating Bubbles
-   ========================================================================== */
 .ambient-scene {
   position: fixed;
   inset: 0;
@@ -138,7 +204,6 @@ body {
   z-index: 0;
 }
 
-/* Primary Fiery Sunset Aura with Violet & Lime (as in user reference photo) */
 .aura-orb.orb-primary {
   position: absolute;
   top: -8%;
@@ -147,19 +212,17 @@ body {
   height: 620px;
   border-radius: 45% 55% 50% 50% / 50% 45% 55% 50%;
   background: radial-gradient(circle at 45% 40%,
-    #ff4500 0%,
-    #ff6e20 28%,
-    #ff8f3d 45%,
-    #ff2a70 65%,
-    #7928ca 85%,
-    transparent 100%
-  );
+      #ff4500 0%,
+      #ff6e20 28%,
+      #ff8f3d 45%,
+      #ff2a70 65%,
+      #7928ca 85%,
+      transparent 100%);
   filter: blur(45px);
   opacity: 0.92;
   animation: floatAuraPrimary 14s ease-in-out infinite alternate;
 }
 
-/* Lime-green glow rim at top edge of the primary orb */
 .orb-lime-rim {
   position: absolute;
   top: 8%;
@@ -172,7 +235,6 @@ body {
   mix-blend-mode: screen;
 }
 
-/* Golden Sparkle Stars on the Orb (exact match to reference photo!) */
 .orb-star {
   position: absolute;
   color: var(--gold-star);
@@ -196,7 +258,6 @@ body {
   animation-delay: 1.4s;
 }
 
-/* Secondary glowing orb bottom right */
 .aura-orb.orb-secondary {
   position: absolute;
   bottom: -15%;
@@ -205,17 +266,15 @@ body {
   height: 520px;
   border-radius: 50%;
   background: radial-gradient(circle at 50% 50%,
-    #ff6230 0%,
-    #ff336f 42%,
-    #9333ea 78%,
-    transparent 100%
-  );
+      #ff6230 0%,
+      #ff336f 42%,
+      #9333ea 78%,
+      transparent 100%);
   filter: blur(55px);
   opacity: 0.78;
   animation: floatAuraSecondary 16s ease-in-out infinite alternate;
 }
 
-/* Tertiary violet-rose aura on left side */
 .aura-orb.orb-tertiary {
   position: absolute;
   bottom: 10%;
@@ -224,30 +283,24 @@ body {
   height: 480px;
   border-radius: 50%;
   background: radial-gradient(circle at 40% 40%,
-    #ff6b8b 0%,
-    #a855f7 50%,
-    #ec4899 75%,
-    transparent 100%
-  );
+      #ff6b8b 0%,
+      #a855f7 50%,
+      #ec4899 75%,
+      transparent 100%);
   filter: blur(60px);
   opacity: 0.65;
   animation: floatAuraTertiary 18s ease-in-out infinite alternate;
 }
 
-/* ==========================================================================
-   Liquid Blobs (Blobs Liquides)
-   Organically morphing molten glass / jelly blobs with fluid refractions
-   ========================================================================== */
 .liquid-blob {
   position: absolute;
   pointer-events: none;
   background: radial-gradient(circle at 32% 28%,
-    rgba(255, 255, 255, 0.95) 0%,
-    rgba(255, 255, 255, 0.52) 20%,
-    rgba(255, 140, 185, 0.38) 46%,
-    rgba(147, 51, 234, 0.35) 74%,
-    rgba(255, 84, 30, 0.42) 100%
-  );
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(255, 255, 255, 0.52) 20%,
+      rgba(255, 140, 185, 0.38) 46%,
+      rgba(147, 51, 234, 0.35) 74%,
+      rgba(255, 84, 30, 0.42) 100%);
   border: 1.5px solid rgba(255, 255, 255, 0.8);
   box-shadow:
     inset -6px -6px 16px rgba(124, 58, 237, 0.28),
@@ -260,7 +313,6 @@ body {
   will-change: transform, border-radius;
 }
 
-/* Individual liquid blob positions, dimensions & animation variants */
 .blob-1 {
   width: 140px;
   height: 120px;
@@ -314,20 +366,22 @@ body {
   animation-delay: -5s;
 }
 
-/* Dynamic Liquid Morphing Keyframes */
 @keyframes liquidMorph1 {
   0% {
     border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%;
     transform: rotate(0deg) scale(1);
   }
+
   33% {
     border-radius: 70% 30% 46% 54% / 30% 29% 71% 70%;
     transform: rotate(120deg) scale(1.05);
   }
+
   66% {
     border-radius: 35% 65% 31% 69% / 57% 59% 41% 43%;
     transform: rotate(240deg) scale(0.96);
   }
+
   100% {
     border-radius: 60% 40% 65% 35% / 40% 65% 35% 60%;
     transform: rotate(360deg) scale(1.03);
@@ -339,10 +393,12 @@ body {
     border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
     transform: rotate(0deg) scale(1);
   }
+
   50% {
     border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;
     transform: rotate(180deg) scale(1.08);
   }
+
   100% {
     border-radius: 55% 45% 40% 60% / 35% 50% 50% 65%;
     transform: rotate(360deg) scale(0.98);
@@ -354,10 +410,12 @@ body {
     border-radius: 48% 52% 62% 38% / 38% 46% 54% 62%;
     transform: rotate(0deg) scale(0.97);
   }
+
   50% {
     border-radius: 65% 35% 40% 60% / 60% 40% 60% 40%;
     transform: rotate(-160deg) scale(1.06);
   }
+
   100% {
     border-radius: 40% 60% 55% 45% / 45% 55% 45% 55%;
     transform: rotate(-360deg) scale(1);
@@ -365,21 +423,41 @@ body {
 }
 
 @keyframes floatDrift1 {
-  0%, 100% { transform: translateY(0) translateX(0); }
-  50% { transform: translateY(-26px) translateX(16px); }
+
+  0%,
+  100% {
+    transform: translateY(0) translateX(0);
+  }
+
+  50% {
+    transform: translateY(-26px) translateX(16px);
+  }
 }
 
 @keyframes floatDrift2 {
-  0%, 100% { transform: translateY(0) translateX(0); }
-  50% { transform: translateY(-20px) translateX(-20px); }
+
+  0%,
+  100% {
+    transform: translateY(0) translateX(0);
+  }
+
+  50% {
+    transform: translateY(-20px) translateX(-20px);
+  }
 }
 
 @keyframes floatDrift3 {
-  0%, 100% { transform: translateY(0) translateX(0); }
-  50% { transform: translateY(-30px) translateX(12px); }
+
+  0%,
+  100% {
+    transform: translateY(0) translateX(0);
+  }
+
+  50% {
+    transform: translateY(-30px) translateX(12px);
+  }
 }
 
-/* Golden Sparkling Stars scattered */
 .sparkle {
   position: absolute;
   color: var(--gold-star);
@@ -387,140 +465,90 @@ body {
   user-select: none;
   animation: starTwinkle 4s ease-in-out infinite;
 }
-.sp-1 { top: 18%; right: 38%; font-size: 1.6rem; animation-delay: -1s; }
-.sp-2 { top: 68%; right: 22%; font-size: 1.4rem; animation-delay: -2.5s; }
-.sp-3 { top: 38%; left: 24%; font-size: 1.8rem; animation-delay: -0.5s; }
-.sp-4 { top: 84%; left: 42%; font-size: 1.3rem; animation-delay: -3s; }
 
-/* Ambient Keyframes */
+.sp-1 {
+  top: 18%;
+  right: 38%;
+  font-size: 1.6rem;
+  animation-delay: -1s;
+}
+
+.sp-2 {
+  top: 68%;
+  right: 22%;
+  font-size: 1.4rem;
+  animation-delay: -2.5s;
+}
+
+.sp-3 {
+  top: 38%;
+  left: 24%;
+  font-size: 1.8rem;
+  animation-delay: -0.5s;
+}
+
+.sp-4 {
+  top: 84%;
+  left: 42%;
+  font-size: 1.3rem;
+  animation-delay: -3s;
+}
+
 @keyframes floatAuraPrimary {
-  0% { transform: translate(0, 0) scale(1) rotate(0deg); }
-  50% { transform: translate(-25px, 20px) scale(1.05) rotate(4deg); }
-  100% { transform: translate(15px, -15px) scale(0.98) rotate(-3deg); }
+  0% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+
+  50% {
+    transform: translate(-25px, 20px) scale(1.05) rotate(4deg);
+  }
+
+  100% {
+    transform: translate(15px, -15px) scale(0.98) rotate(-3deg);
+  }
 }
 
 @keyframes floatAuraSecondary {
-  0% { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(-30px, -25px) scale(1.08); }
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  100% {
+    transform: translate(-30px, -25px) scale(1.08);
+  }
 }
 
 @keyframes floatAuraTertiary {
-  0% { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(25px, 20px) scale(1.06); }
-}
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
 
-@keyframes floatDrift {
-  0%, 100% { transform: translateY(0) translateX(0) scale(1); }
-  25% { transform: translateY(-16px) translateX(10px) scale(1.03); }
-  50% { transform: translateY(-28px) translateX(-8px) scale(0.98); }
-  75% { transform: translateY(-12px) translateX(-14px) scale(1.02); }
+  100% {
+    transform: translate(25px, 20px) scale(1.06);
+  }
 }
 
 @keyframes starTwinkle {
-  0%, 100% { opacity: 0.35; transform: scale(0.85) rotate(0deg); }
-  50% { opacity: 1; transform: scale(1.15) rotate(12deg); }
+
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85) rotate(0deg);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.15) rotate(12deg);
+  }
 }
 
-/* ==========================================================================
-   Header: Frosted Glass with Dreamy Accents
-   ========================================================================== */
-#app-header {
-  height: var(--header-height);
-  background: var(--glass-surface);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1.5px solid var(--glass-border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 var(--space-xl);
-  position: relative;
-  z-index: 100;
-  box-shadow: 0 4px 20px rgba(180, 40, 80, 0.08);
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-}
-
-.logo-icon {
-  width: 34px;
-  height: 34px;
-  object-fit: contain;
-  filter: drop-shadow(0 2px 8px rgba(255, 84, 30, 0.35));
-  flex-shrink: 0;
-  display: block;
-  animation: pulseLogo 3s ease-in-out infinite;
-}
-
-@keyframes pulseLogo {
-  0%, 100% { transform: scale(1); filter: drop-shadow(0 2px 8px rgba(255, 84, 30, 0.35)); }
-  50% { transform: scale(1.08); filter: drop-shadow(0 4px 14px rgba(255, 45, 117, 0.55)); }
-}
-
-.logo-text {
-  font-family: var(--font-display);
-  font-size: 1.35rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: var(--text-primary);
-}
-
-.logo-accent {
-  background: linear-gradient(135deg, #ff541e 0%, #ff2d75 55%, #7c3aed 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-fill-color: transparent;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.header-btn {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--glass-border);
-  color: var(--text-secondary);
-  padding: var(--space-sm) var(--space-lg);
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  font-family: var(--font-body);
-  font-size: 0.86rem;
-  font-weight: 600;
-  transition: all var(--transition-fast);
-  box-shadow: var(--shadow-sm);
-}
-
-.header-btn:hover {
-  background: #ffffff;
-  color: var(--sunset-orange);
-  border-color: var(--sunset-rose);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(255, 84, 30, 0.2);
-}
-
-/* ==========================================================================
-   Main Layout
-   ========================================================================== */
 #app-main {
   display: flex;
-  height: calc(100vh - var(--header-height));
+  height: 100vh;
   position: relative;
   z-index: 10;
 }
 
-/* ==========================================================================
-   Left Panel: Glassmorphic Sidebar
-   ========================================================================== */
 #panel-left {
   width: var(--panel-width);
   min-width: var(--panel-width);
@@ -553,6 +581,35 @@ body {
   transform: translateY(-1px);
 }
 
+.footer-credit {
+  margin-top: auto;
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  user-select: none;
+  letter-spacing: -0.01em;
+  padding: var(--space-xs) 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: color var(--transition-fast);
+}
+
+.footer-credit:hover {
+  color: var(--text-primary);
+}
+
+.credit-author {
+  font-weight: 700;
+  color: var(--text-secondary);
+  transition: color var(--transition-fast);
+}
+
+.footer-credit:hover .credit-author {
+  color: var(--sunset-orange);
+}
+
 .section-title {
   display: flex;
   align-items: center;
@@ -581,9 +638,6 @@ body {
   box-shadow: 0 3px 10px rgba(255, 84, 30, 0.35);
 }
 
-/* ==========================================================================
-   Step 1: GIF Selection Gallery
-   ========================================================================== */
 .gif-gallery {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -685,7 +739,6 @@ body {
   text-overflow: ellipsis;
 }
 
-/* Custom Checkbox: Fond Transparent */
 .option-row {
   margin-top: var(--space-md);
   padding-top: var(--space-sm);
@@ -732,14 +785,14 @@ body {
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
-.custom-checkbox:hover + .checkbox-box,
+.custom-checkbox:hover+.checkbox-box,
 .custom-checkbox-wrap:hover .checkbox-box {
   border-color: var(--sunset-orange);
   background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 0 10px rgba(255, 84, 30, 0.25);
 }
 
-.custom-checkbox:checked + .checkbox-box {
+.custom-checkbox:checked+.checkbox-box {
   background: var(--accent-gradient);
   border-color: transparent;
   color: #ffffff;
@@ -747,7 +800,7 @@ body {
   transform: scale(1.05);
 }
 
-.custom-checkbox:focus-visible + .checkbox-box {
+.custom-checkbox:focus-visible+.checkbox-box {
   outline: 2px solid var(--sunset-rose);
   outline-offset: 2px;
 }
@@ -756,9 +809,6 @@ body {
   letter-spacing: -0.01em;
 }
 
-/* ==========================================================================
-   Step 2: Background Upload
-   ========================================================================== */
 .upload-zone {
   border: 2px dashed rgba(255, 84, 30, 0.35);
   border-radius: var(--radius-md);
@@ -846,9 +896,6 @@ body {
   transform: scale(1.1);
 }
 
-/* ==========================================================================
-   Step 3: Controls
-   ========================================================================== */
 .controls-grid {
   display: flex;
   flex-direction: column;
@@ -886,7 +933,6 @@ body {
   margin: var(--space-xs) 0;
 }
 
-/* Auto Tracking Badge matching the aura dreamscape */
 .tracking-badge {
   display: flex;
   align-items: center;
@@ -912,16 +958,30 @@ body {
 }
 
 @keyframes shimmerBadge {
-  0%, 100% { border-color: rgba(255, 84, 30, 0.3); }
-  50% { border-color: rgba(255, 45, 117, 0.6); box-shadow: 0 4px 18px rgba(255, 45, 117, 0.2); }
+
+  0%,
+  100% {
+    border-color: rgba(255, 84, 30, 0.3);
+  }
+
+  50% {
+    border-color: rgba(255, 45, 117, 0.6);
+    box-shadow: 0 4px 18px rgba(255, 45, 117, 0.2);
+  }
 }
 
 @keyframes pulseTarget {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.18); }
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.18);
+  }
 }
 
-/* Color Picker */
 .color-picker-wrap {
   display: flex;
   align-items: center;
@@ -948,7 +1008,6 @@ body {
   border-radius: 4px;
 }
 
-/* Range Slider */
 .slider {
   -webkit-appearance: none;
   appearance: none;
@@ -995,9 +1054,6 @@ body {
   box-shadow: 0 4px 14px rgba(255, 84, 30, 0.7);
 }
 
-/* ==========================================================================
-   Center: Canvas Area & Preview
-   ========================================================================== */
 #canvas-area {
   flex: 1;
   display: flex;
@@ -1011,7 +1067,6 @@ body {
   overflow: hidden;
 }
 
-/* Ambient canvas container frame */
 #canvas-container {
   position: relative;
   display: flex;
@@ -1027,7 +1082,7 @@ body {
   min-width: 400px;
   min-height: 300px;
   max-width: 85%;
-  max-height: calc(100vh - var(--header-height) - 170px);
+  max-height: calc(100vh - 170px);
   transition: all var(--transition-base);
 }
 
@@ -1044,7 +1099,6 @@ body {
   display: block;
 }
 
-/* Empty state matching the reference poster style */
 #empty-state {
   display: flex;
   flex-direction: column;
@@ -1062,8 +1116,13 @@ body {
 }
 
 @keyframes floatEmptyIcon {
-  from { transform: translateY(0); }
-  to { transform: translateY(-8px); }
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(-8px);
+  }
 }
 
 #empty-state h3 {
@@ -1081,9 +1140,6 @@ body {
   line-height: 1.5;
 }
 
-/* ==========================================================================
-   Playback Bar: Floating Glass Controller
-   ========================================================================== */
 #playback-bar {
   display: flex;
   align-items: center;
@@ -1154,9 +1210,6 @@ body {
   box-shadow: 0 0 10px rgba(255, 84, 30, 0.5);
 }
 
-/* ==========================================================================
-   Export Area & Buttons
-   ========================================================================== */
 #export-area {
   z-index: 10;
 }
@@ -1189,9 +1242,6 @@ body {
   transform: translateY(0) scale(0.98);
 }
 
-/* ==========================================================================
-   Export Modal: Dreamy Frosted Glass
-   ========================================================================== */
 .modal {
   position: fixed;
   inset: 0;
@@ -1228,8 +1278,15 @@ body {
 }
 
 @keyframes modalIn {
-  from { opacity: 0; transform: scale(0.9) translateY(18px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .modal-icon {
@@ -1244,8 +1301,13 @@ body {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .modal-content h3 {
@@ -1330,68 +1392,6 @@ body {
   box-shadow: 0 14px 36px rgba(255, 84, 30, 0.5);
 }
 
-/* ==========================================================================
-   Loading Indicator with Axolotl Animation (Blue zone: bottom area outside sidebar)
-   ========================================================================== */
-#loading-overlay {
-  position: fixed;
-  bottom: 0;
-  left: var(--panel-width);
-  right: 0;
-  height: 38vh;
-  min-height: 220px;
-  max-height: 360px;
-  z-index: 1000;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  pointer-events: none;
-  overflow: hidden;
-  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-#loading-overlay.hidden {
-  display: none !important;
-}
-
-.loading-axolotl-banner {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  padding-bottom: var(--space-sm);
-  animation: slideUpAxolotl 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes slideUpAxolotl {
-  from {
-    opacity: 0;
-    transform: translateY(35px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.loading-axolotl-anim {
-  width: 100%;
-  height: 100%;
-  max-height: 290px;
-  object-fit: contain;
-  object-position: bottom center;
-  filter: drop-shadow(0 14px 30px rgba(255, 84, 30, 0.32));
-  pointer-events: none;
-}
-
-
-
-/* ==========================================================================
-   Responsive Adaptations
-   ========================================================================== */
 @media (max-width: 900px) {
   #app-main {
     flex-direction: column;
@@ -1414,14 +1414,5 @@ body {
   #playback-bar {
     min-width: 320px;
     max-width: 95%;
-  }
-
-  #loading-overlay {
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 32vh;
-    min-height: 180px;
-    max-width: 100%;
   }
 }

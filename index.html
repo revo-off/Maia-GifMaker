@@ -33,42 +33,20 @@
     <div class="liquid-blob blob-5"></div>
     <div class="liquid-blob blob-6"></div>
 
-    <!-- Golden twinkles -->
     <div class="sparkle sp-1">✦</div>
     <div class="sparkle sp-2">+</div>
     <div class="sparkle sp-3">✦</div>
     <div class="sparkle sp-4">+</div>
   </div>
 
-  <!-- Header -->
-  <header id="app-header">
-    <div class="header-left">
-      <img src="misc/icon.png" alt="Goofy Icon" class="logo-icon" width="32" height="32">
-      <span class="logo-text"><span class="logo-accent">Gifmakerbey</span></span>
-    </div>
-    <div class="header-right">
-      <button id="btn-reset" class="header-btn" title="Réinitialiser">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M1 4v6h6" />
-          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-        </svg>
-        <span>Réinitialiser</span>
-      </button>
-    </div>
-  </header>
-
-  <!-- Main Layout -->
   <main id="app-main">
-    <!-- Left Panel: Upload & Tools -->
     <aside id="panel-left">
-      <!-- Step 1: GIF Selection -->
       <section class="panel-section" id="section-gif">
         <h2 class="section-title">
           <span class="step-badge">1</span>
           Choisir un GIF
         </h2>
         <div class="gif-gallery" id="gif-gallery">
-          <!-- Populated dynamically from gifs/catalog.json -->
           <div class="gallery-loading">
             <div class="spinner-small"></div>
             <span>Chargement...</span>
@@ -88,7 +66,6 @@
         </div>
       </section>
 
-      <!-- Step 2: Background Upload -->
       <section class="panel-section" id="section-bg">
         <h2 class="section-title">
           <span class="step-badge">2</span>
@@ -116,7 +93,6 @@
         </div>
       </section>
 
-      <!-- Step 3: Controls -->
       <section class="panel-section" id="section-controls">
         <h2 class="section-title">
           <span class="step-badge">3</span>
@@ -124,7 +100,6 @@
         </h2>
 
         <div class="controls-grid">
-          <!-- Chroma Key -->
           <div class="control-group">
             <label class="control-label">
               <span>Tolérance Chroma</span>
@@ -133,7 +108,6 @@
             <input type="range" id="ctrl-tolerance" min="10" max="200" value="100" class="slider">
           </div>
 
-          <!-- Color picker for chroma key -->
           <div class="control-group">
             <label class="control-label">
               <span>Couleur clé</span>
@@ -146,7 +120,6 @@
 
           <div class="control-divider"></div>
 
-          <!-- Auto-tracking status -->
           <div class="tracking-badge">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="3" />
@@ -162,7 +135,7 @@
               <span>Vitesse GIF principal</span>
               <span class="control-value" id="val-speed">1.0x</span>
             </label>
-            <input type="range" id="ctrl-speed" min="0.1" max="3" value="1" step="0.1" class="slider">
+            <input type="range" id="ctrl-speed" min="0.1" max="10" value="1" step="0.1" class="slider">
           </div>
 
           <div class="control-group hidden" id="group-bg-speed">
@@ -170,16 +143,18 @@
               <span id="label-bg-speed">Vitesse arrière-plan</span>
               <span class="control-value" id="val-bg-speed">1.0x</span>
             </label>
-            <input type="range" id="ctrl-bg-speed" min="0.1" max="3" value="1" step="0.1" class="slider">
+            <input type="range" id="ctrl-bg-speed" min="0.1" max="10" value="1" step="0.1" class="slider">
           </div>
         </div>
       </section>
+
+      <div class="footer-credit">
+        par <span class="credit-author">revo.</span>
+      </div>
     </aside>
 
-    <!-- Center: Canvas Preview -->
     <div id="canvas-area">
       <div id="canvas-container">
-        <!-- Empty state -->
         <div id="empty-state">
           <svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="currentColor" stroke-width="1">
             <rect x="2" y="2" width="20" height="20" rx="4" />
@@ -190,11 +165,9 @@
           <h3>Sélectionnez un GIF</h3>
           <p>Choisissez un GIF fond vert dans le panneau de gauche pour commencer</p>
         </div>
-        <!-- Preview canvas -->
         <canvas id="preview-canvas"></canvas>
       </div>
 
-      <!-- Playback controls -->
       <div id="playback-bar" class="hidden">
         <button id="btn-play" class="playback-btn" title="Lecture / Pause">
           <svg id="icon-play" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
@@ -213,7 +186,6 @@
         </div>
       </div>
 
-      <!-- Export button -->
       <div id="export-area" class="hidden">
         <button id="btn-export" class="btn-export">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
@@ -227,7 +199,20 @@
     </div>
   </main>
 
-  <!-- Export modal/progress -->
+  <div id="loading-modal" class="modal hidden" role="status" aria-live="polite">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-icon">
+        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 6v6l4 2" />
+        </svg>
+      </div>
+      <h3 id="loading-title">Chargement en cours...</h3>
+      <p id="loading-subtitle">Traitement du GIF</p>
+    </div>
+  </div>
+
   <div id="export-modal" class="modal hidden">
     <div class="modal-backdrop"></div>
     <div class="modal-content">
@@ -244,7 +229,6 @@
       </div>
       <span class="export-percent" id="export-percent">0%</span>
       <button id="btn-cancel-export" class="btn-cancel">Annuler</button>
-      <!-- Download button (shown after export) -->
       <a id="btn-download" class="btn-download hidden" download="maia-gifmaker-export.gif">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -256,14 +240,6 @@
     </div>
   </div>
 
-  <!-- Loading indicator with axolotl animation (occupies bottom area outside vertical panel) -->
-  <div id="loading-overlay" class="hidden" role="status" aria-live="polite">
-    <div class="loading-axolotl-banner">
-      <img id="loading-axolotl-img" src="misc/axoltlanim.gif" alt="Axolotl Chargement" class="loading-axolotl-anim">
-    </div>
-  </div>
-
-  <!-- Scripts -->
   <script src="lib/gifuct-js.min.js"></script>
   <script src="lib/gif.js"></script>
   <script src="app.js"></script>
