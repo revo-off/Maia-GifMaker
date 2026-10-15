@@ -128,13 +128,11 @@
       // Handle disposal
       if (i > 0) {
         const prevFrame = rawFrames[i - 1];
-        if (prevFrame.disposalType === 2 || prevFrame.disposalType === 0 || (dims.width === width && dims.height === height)) {
-          // Restore to background
-          fullCtx.clearRect(0, 0, width, height);
-        } else if (prevFrame.disposalType === 3) {
-          // Restore to previous - for simplicity, we just keep the previous
+        if (prevFrame.disposalType === 2) {
+          // Restore to background: clear only the previous frame area
+          const pd = prevFrame.dims;
+          fullCtx.clearRect(pd.left, pd.top, pd.width, pd.height);
         }
-        // disposalType 1: do not dispose (keep previous)
       }
 
       // Draw patch onto full canvas
@@ -474,43 +472,34 @@
 
     targetCtx.save();
 
-    if (state.transparentBackground) {
-      // In transparent mode, draw background covering the canvas behind the transparent GIF
-      const coverScale = Math.max(w / bgW, h / bgH);
-      const drawW = bgW * coverScale;
-      const drawH = bgH * coverScale;
-      targetCtx.drawImage(bgSource, (w - drawW) / 2, (h - drawH) / 2, drawW, drawH);
-    } else {
-      // In green screen mode, track and scale to the green screen card
-      const bbox = state.trackingData && state.trackingData[frameIndex];
-      if (!bbox) {
-        targetCtx.restore();
-        return;
-      }
-
-      // Clip strictly to green screen bounding box (with slight margin for smooth edge blending)
-      targetCtx.beginPath();
-      targetCtx.rect(bbox.minX - 1, bbox.minY - 1, bbox.w + 2, bbox.h + 2);
-      targetCtx.clip();
-
-      // Center and rotate to match the green screen orientation
-      targetCtx.translate(bbox.cx, bbox.cy);
-      if (bbox.angle) {
-        targetCtx.rotate(bbox.angle);
-      }
-
-      // Scale to cover the green screen area
-      const cos = Math.abs(Math.cos(bbox.angle || 0));
-      const sin = Math.abs(Math.sin(bbox.angle || 0));
-      const targetW = bbox.w * cos + bbox.h * sin;
-      const targetH = bbox.w * sin + bbox.h * cos;
-      const coverScale = Math.max(targetW / bgW, targetH / bgH);
-      const drawW = bgW * coverScale;
-      const drawH = bgH * coverScale;
-
-      targetCtx.drawImage(bgSource, -drawW / 2, -drawH / 2, drawW, drawH);
+    // Track and scale to the green screen card
+    const bbox = state.trackingData && state.trackingData[frameIndex];
+    if (!bbox) {
+      targetCtx.restore();
+      return;
     }
 
+    // Clip strictly to green screen bounding box (with slight margin for smooth edge blending)
+    targetCtx.beginPath();
+    targetCtx.rect(bbox.minX - 1, bbox.minY - 1, bbox.w + 2, bbox.h + 2);
+    targetCtx.clip();
+
+    // Center and rotate to match the green screen orientation
+    targetCtx.translate(bbox.cx, bbox.cy);
+    if (bbox.angle) {
+      targetCtx.rotate(bbox.angle);
+    }
+
+    // Scale to cover the green screen area
+    const cos = Math.abs(Math.cos(bbox.angle || 0));
+    const sin = Math.abs(Math.sin(bbox.angle || 0));
+    const targetW = bbox.w * cos + bbox.h * sin;
+    const targetH = bbox.w * sin + bbox.h * cos;
+    const coverScale = Math.max(targetW / bgW, targetH / bgH);
+    const drawW = bgW * coverScale;
+    const drawH = bgH * coverScale;
+
+    targetCtx.drawImage(bgSource, -drawW / 2, -drawH / 2, drawW, drawH);
     targetCtx.restore();
   }
 
@@ -530,15 +519,7 @@
     // Draw background
     drawBackground(ctx, w, h, frameIndex);
 
-    // If transparent background mode, draw frame directly
-    if (state.transparentBackground) {
-      tempCtx.clearRect(0, 0, w, h);
-      tempCtx.putImageData(frame, 0, 0);
-      ctx.drawImage(tempCanvas, 0, 0);
-      return;
-    }
-
-    // Green screen mode: apply chroma key
+    // Apply chroma key: make green pixels transparent
     tempCtx.clearRect(0, 0, w, h);
     tempCtx.putImageData(frame, 0, 0);
 
@@ -686,36 +667,30 @@
       // Draw background
       drawBackground(renderCtx, w, h, i);
 
-      if (state.transparentBackground) {
-        renderTempCtx.clearRect(0, 0, w, h);
-        renderTempCtx.putImageData(frame, 0, 0);
-        renderCtx.drawImage(renderTemp, 0, 0);
-      } else {
-        // Chroma key
-        renderTempCtx.clearRect(0, 0, w, h);
-        renderTempCtx.putImageData(frame, 0, 0);
-        const frameData = renderTempCtx.getImageData(0, 0, w, h);
-        const data = frameData.data;
+      // Chroma key
+      renderTempCtx.clearRect(0, 0, w, h);
+      renderTempCtx.putImageData(frame, 0, 0);
+      const frameData = renderTempCtx.getImageData(0, 0, w, h);
+      const data = frameData.data;
 
-        for (let j = 0; j < data.length; j += 4) {
-          const r = data[j];
-          const g = data[j + 1];
-          const b = data[j + 2];
-          const a = data[j + 3];
-          if (a === 0) continue;
+      for (let j = 0; j < data.length; j += 4) {
+        const r = data[j];
+        const g = data[j + 1];
+        const b = data[j + 2];
+        const a = data[j + 3];
+        if (a === 0) continue;
 
-          const dist = colorDistance(r, g, b, chromaColor.r, chromaColor.g, chromaColor.b);
-          if (dist < tolerance) {
-            data[j + 3] = 0;
-          } else if (dist < tolerance * 1.4) {
-            const blend = (dist - tolerance) / (tolerance * 0.4);
-            data[j + 3] = Math.round(a * Math.min(1, blend));
-          }
+        const dist = colorDistance(r, g, b, chromaColor.r, chromaColor.g, chromaColor.b);
+        if (dist < tolerance) {
+          data[j + 3] = 0;
+        } else if (dist < tolerance * 1.4) {
+          const blend = (dist - tolerance) / (tolerance * 0.4);
+          data[j + 3] = Math.round(a * Math.min(1, blend));
         }
-
-        renderTempCtx.putImageData(frameData, 0, 0);
-        renderCtx.drawImage(renderTemp, 0, 0);
       }
+
+      renderTempCtx.putImageData(frameData, 0, 0);
+      renderCtx.drawImage(renderTemp, 0, 0);
 
       const delay = (state.gifDelays[i] || 100) / speed;
       gif.addFrame(renderCtx, { copy: true, delay: Math.max(20, Math.round(delay)) });

@@ -1216,40 +1216,73 @@ body {
 }
 
 /* ==========================================================================
-   Loading Overlay
+   Loading Indicator with Axolotl Animation (Bottom of page, outside vertical panel)
    ========================================================================== */
 #loading-overlay {
   position: fixed;
-  inset: 0;
-  z-index: 999;
-  background: rgba(56, 7, 36, 0.45);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  bottom: 28px;
+  left: calc(var(--panel-width) + (100vw - var(--panel-width)) / 2);
+  transform: translateX(-50%);
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1.5px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  padding: 8px 24px 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  box-shadow: 0 16px 40px rgba(180, 40, 80, 0.22), 0 0 24px rgba(255, 84, 30, 0.2);
+  pointer-events: none;
+  animation: slideUpLoading 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity var(--transition-base), transform var(--transition-base);
+}
+
+#loading-overlay.hidden {
+  display: none !important;
+}
+
+@keyframes slideUpLoading {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 20px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+.loading-axolotl-anim {
+  width: 80px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 14px rgba(255, 84, 30, 0.28);
+  flex-shrink: 0;
+}
+
+.loading-info {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-lg);
-  color: #ffffff;
+  gap: 2px;
 }
 
-#loading-overlay p {
+.loading-title {
   font-family: var(--font-display);
-  font-size: 1.15rem;
-  font-weight: 700;
-  color: #fff9ea;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 
-.spinner {
-  width: 48px;
-  height: 48px;
-  border: 4px solid rgba(255, 255, 255, 0.3);
-  border-top-color: var(--sunset-orange);
-  border-right-color: var(--sunset-rose);
-  border-radius: 50%;
-  animation: spin 0.8s cubic-bezier(0.5, 0, 0.5, 1) infinite;
-  box-shadow: 0 0 20px rgba(255, 84, 30, 0.5);
+.loading-sub {
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 
 /* ==========================================================================
@@ -1277,5 +1310,12 @@ body {
   #playback-bar {
     min-width: 320px;
     max-width: 95%;
+  }
+
+  #loading-overlay {
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 16px;
+    max-width: 90%;
   }
 }
