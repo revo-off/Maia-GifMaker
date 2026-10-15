@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Maia GifMaker - Remplacez le fond vert de vos GIFs avec vos propres images, vidéos ou GIFs. Outil gratuit de chroma key en ligne.">
+  <title>Maia GifMaker — Chroma Key GIF Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Header -->
+  <header id="app-header">
+    <div class="header-left">
+      <svg class="logo-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="2" width="20" height="20" rx="4"/>
+        <circle cx="12" cy="12" r="4"/>
+        <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+      </svg>
+      <span class="logo-text">Maia <span class="logo-accent">GifMaker</span></span>
+    </div>
+    <div class="header-right">
+      <button id="btn-reset" class="header-btn" title="Réinitialiser">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+        </svg>
+        <span>Réinitialiser</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Layout -->
+  <main id="app-main">
+    <!-- Left Panel: Upload & Tools -->
+    <aside id="panel-left">
+      <!-- Step 1: GIF Upload -->
+      <section class="panel-section" id="section-gif">
+        <h2 class="section-title">
+          <span class="step-badge">1</span>
+          GIF Fond Vert
+        </h2>
+        <div class="upload-zone" id="upload-gif" tabindex="0" role="button" aria-label="Importer un GIF avec fond vert">
+          <input type="file" id="input-gif" accept=".gif" hidden>
+          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <p class="upload-label">Glissez votre GIF ici</p>
+          <p class="upload-hint">ou cliquez pour parcourir</p>
+        </div>
+        <div class="file-info hidden" id="gif-info">
+          <span class="file-name" id="gif-filename"></span>
+          <button class="btn-remove" id="btn-remove-gif" title="Supprimer">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- Step 2: Background Upload -->
+      <section class="panel-section" id="section-bg">
+        <h2 class="section-title">
+          <span class="step-badge">2</span>
+          Arrière-plan
+        </h2>
+        <div class="upload-zone" id="upload-bg" tabindex="0" role="button" aria-label="Importer une image ou vidéo pour l'arrière-plan">
+          <input type="file" id="input-bg" accept="image/*,video/*,.gif" hidden>
+          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          <p class="upload-label">Image, Vidéo ou GIF</p>
+          <p class="upload-hint">pour remplacer le fond vert</p>
+        </div>
+        <div class="file-info hidden" id="bg-info">
+          <span class="file-name" id="bg-filename"></span>
+          <button class="btn-remove" id="btn-remove-bg" title="Supprimer">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- Step 3: Controls -->
+      <section class="panel-section" id="section-controls">
+        <h2 class="section-title">
+          <span class="step-badge">3</span>
+          Ajustements
+        </h2>
+
+        <div class="controls-grid">
+          <!-- Chroma Key -->
+          <div class="control-group">
+            <label class="control-label">
+              <span>Tolérance Chroma</span>
+              <span class="control-value" id="val-tolerance">100</span>
+            </label>
+            <input type="range" id="ctrl-tolerance" min="10" max="200" value="100" class="slider">
+          </div>
+
+          <!-- Color picker for chroma key -->
+          <div class="control-group">
+            <label class="control-label">
+              <span>Couleur clé</span>
+              <div class="color-picker-wrap">
+                <input type="color" id="ctrl-chromacolor" value="#00ff00" class="color-input">
+                <span class="control-value" id="val-chromacolor">#00ff00</span>
+              </div>
+            </label>
+          </div>
+
+          <div class="control-divider"></div>
+
+          <!-- Background Controls -->
+          <div class="control-group">
+            <label class="control-label">
+              <span>Opacité fond</span>
+              <span class="control-value" id="val-opacity">100%</span>
+            </label>
+            <input type="range" id="ctrl-opacity" min="0" max="100" value="100" class="slider">
+          </div>
+
+          <div class="control-group">
+            <label class="control-label">
+              <span>Échelle fond</span>
+              <span class="control-value" id="val-scale">100%</span>
+            </label>
+            <input type="range" id="ctrl-scale" min="10" max="300" value="100" class="slider">
+          </div>
+
+          <div class="control-group">
+            <label class="control-label">
+              <span>Rotation</span>
+              <span class="control-value" id="val-rotation">0°</span>
+            </label>
+            <input type="range" id="ctrl-rotation" min="-180" max="180" value="0" class="slider">
+          </div>
+
+          <div class="control-group">
+            <label class="control-label">
+              <span>Position X</span>
+              <span class="control-value" id="val-posx">0</span>
+            </label>
+            <input type="range" id="ctrl-posx" min="-500" max="500" value="0" class="slider">
+          </div>
+
+          <div class="control-group">
+            <label class="control-label">
+              <span>Position Y</span>
+              <span class="control-value" id="val-posy">0</span>
+            </label>
+            <input type="range" id="ctrl-posy" min="-500" max="500" value="0" class="slider">
+          </div>
+
+          <div class="control-divider"></div>
+
+          <div class="control-group">
+            <label class="control-label">
+              <span>Vitesse GIF</span>
+              <span class="control-value" id="val-speed">1.0x</span>
+            </label>
+            <input type="range" id="ctrl-speed" min="0.1" max="3" value="1" step="0.1" class="slider">
+          </div>
+
+          <div class="control-group">
+            <label class="control-label">
+              <span>Qualité export</span>
+              <span class="control-value" id="val-quality">10</span>
+            </label>
+            <input type="range" id="ctrl-quality" min="1" max="20" value="10" class="slider">
+          </div>
+        </div>
+      </section>
+    </aside>
+
+    <!-- Center: Canvas Preview -->
+    <div id="canvas-area">
+      <div id="canvas-container">
+        <!-- Empty state -->
+        <div id="empty-state">
+          <svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="currentColor" stroke-width="1">
+            <rect x="2" y="2" width="20" height="20" rx="4"/>
+            <path d="M8 8h2v2H8zM14 8h2v2h-2zM8 14h2v2H8zM14 14h2v2h-2z" fill="currentColor" stroke="none" opacity="0.3"/>
+            <circle cx="12" cy="12" r="3" stroke-dasharray="2 2"/>
+          </svg>
+          <h3>Importez un GIF avec fond vert</h3>
+          <p>Commencez par importer votre GIF dans le panneau de gauche</p>
+        </div>
+        <!-- Preview canvas -->
+        <canvas id="preview-canvas"></canvas>
+      </div>
+
+      <!-- Playback controls -->
+      <div id="playback-bar" class="hidden">
+        <button id="btn-play" class="playback-btn" title="Lecture / Pause">
+          <svg id="icon-play" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+          <svg id="icon-pause" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" class="hidden">
+            <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
+          </svg>
+        </button>
+        <div class="frame-info">
+          <span id="frame-counter">0 / 0</span>
+        </div>
+        <div class="progress-bar-container">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+      </div>
+
+      <!-- Export button -->
+      <div id="export-area" class="hidden">
+        <button id="btn-export" class="btn-export">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span>Exporter en GIF</span>
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Export modal/progress -->
+  <div id="export-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-icon">
+        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 6v6l4 2"/>
+        </svg>
+      </div>
+      <h3 id="modal-title">Exportation en cours...</h3>
+      <p id="modal-subtitle">Préparation des frames</p>
+      <div class="export-progress-track">
+        <div class="export-progress-fill" id="export-progress"></div>
+      </div>
+      <span class="export-percent" id="export-percent">0%</span>
+      <button id="btn-cancel-export" class="btn-cancel">Annuler</button>
+      <!-- Download button (shown after export) -->
+      <a id="btn-download" class="btn-download hidden" download="maia-gifmaker-export.gif">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span>Télécharger le GIF</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- Loading overlay -->
+  <div id="loading-overlay" class="hidden">
+    <div class="spinner"></div>
+    <p>Décodage du GIF...</p>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://unpkg.com/gifuct-js@2.1.2/dist/gifuct-js.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
