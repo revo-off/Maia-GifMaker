@@ -22,6 +22,8 @@
     bgGifDelays: [],
     bgGifWidth: 0,
     bgGifHeight: 0,
+    bgCurrentFrame: 0,    // Current frame for background GIF animation
+    lastBgFrameTime: 0,   // Timestamp for background GIF frame advance
     playing: true,
     currentFrame: 0,
     animationId: null,
@@ -54,7 +56,9 @@
   const ctrlTolerance = $('#ctrl-tolerance');
   const ctrlChromaColor = $('#ctrl-chromacolor');
   const ctrlSpeed = $('#ctrl-speed');
-  const ctrlQuality = $('#ctrl-quality');
+  const ctrlBgSpeed = $('#ctrl-bg-speed');
+  const groupBgSpeed = $('#group-bg-speed');
+  const labelBgSpeed = $('#label-bg-speed');
 
   // Playback
   const playbackBar = $('#playback-bar');
@@ -86,6 +90,34 @@
     const g = parseInt(hex.slice(3, 5), 16);
     const b = parseInt(hex.slice(5, 7), 16);
     return { r, g, b };
+  }
+
+  // ── Loading with full axolotl animation loop ──
+  let loadingStartTime = 0;
+  const AXOLOTL_ANIM_DURATION = 9450; // ms (exact duration of 189 frames @ 50ms)
+  let loadingHideTimer = null;
+
+  function showLoading() {
+    if (loadingHideTimer) {
+      clearTimeout(loadingHideTimer);
+      loadingHideTimer = null;
+    }
+    loadingStartTime = performance.now();
+    const img = $('#loading-overlay img');
+    if (img) {
+      img.src = 'misc/axoltlanim.gif?t=' + Date.now();
+    }
+    loadingOverlay.classList.remove('hidden');
+  }
+
+  function hideLoading() {
+    const elapsed = performance.now() - loadingStartTime;
+    const remaining = Math.max(0, AXOLOTL_ANIM_DURATION - elapsed);
+    if (loadingHideTimer) clearTimeout(loadingHideTimer);
+    loadingHideTimer = setTimeout(() => {
+      loadingOverlay.classList.add('hidden');
+      loadingHideTimer = null;
+    }, remaining);
   }
 
   function colorDistance(r1, g1, b1, r2, g2, b2) {
@@ -150,7 +182,7 @@
 
   // ── GIF Loading (from URL) ──
   async function loadGifFromUrl(url) {
-    loadingOverlay.classList.remove('hidden');
+    showLoading();
 
     try {
       const response = await fetch(url);
@@ -188,7 +220,7 @@
       console.error('GIF decode error:', err);
       alert('Erreur lors du chargement du GIF. Veuillez réessayer.');
     } finally {
-      loadingOverlay.classList.add('hidden');
+      hideLoading();
     }
   }
 
@@ -278,7 +310,7 @@
 
     if (type === 'image/gif') {
       // Decode GIF background
-      loadingOverlay.classList.remove('hidden');
+      showLoading();
       try {
         const buffer = await file.arrayBuffer();
         const { frames, delays, width, height } = await decodeGif(buffer);
@@ -287,12 +319,16 @@
         state.bgGifDelays = delays;
         state.bgGifWidth = width;
         state.bgGifHeight = height;
+        state.bgCurrentFrame = 0;
+        state.lastBgFrameTime = performance.now();
         state.bgImage = null;
+        groupBgSpeed.classList.remove('hidden');
+        labelBgSpeed.textContent = 'Vitesse GIF arrière-plan';
       } catch (err) {
         console.error('BG GIF decode error:', err);
         alert('Erreur lors du décodage du GIF d\'arrière-plan.');
       } finally {
-        loadingOverlay.classList.add('hidden');
+        hideLoading();
       }
     } else if (type.startsWith('video/')) {
       state.bgType = 'video';
@@ -306,9 +342,12 @@
         video.onloadeddata = resolve;
         video.load();
       });
+      video.playbackRate = parseFloat(ctrlBgSpeed.value) || 1.0;
       video.play();
       state.bgImage = video;
       state.bgGifFrames = [];
+      groupBgSpeed.classList.remove('hidden');
+      labelBgSpeed.textContent = 'Vitesse vidéo arrière-plan';
     } else if (type.startsWith('image/')) {
       state.bgType = 'image';
       const img = new Image();
@@ -318,6 +357,7 @@
       });
       state.bgImage = img;
       state.bgGifFrames = [];
+      groupBgSpeed.classList.add('hidden');
     }
 
     bgInfo.classList.remove('hidden');
@@ -479,23 +519,41 @@
     }
   }
 
-  function drawBackground(targetCtx, w, h, frameIndex) {
+  function drawBackground(targetCtx, w, h, frameIndex, isExport, exportTimeMs) {
     if (!state.bgType) return;
 
     let bgSource = null;
     let bgW = w;
     let bgH = h;
+    const bgSpeed = parseFloat(ctrlBgSpeed.value) || 1.0;
 
     if (state.bgType === 'image' && state.bgImage) {
       bgSource = state.bgImage;
       bgW = state.bgImage.naturalWidth || state.bgImage.width;
       bgH = state.bgImage.naturalHeight || state.bgImage.height;
     } else if (state.bgType === 'video' && state.bgImage) {
+      if (isExport && typeof exportTimeMs === 'number' && state.bgImage.duration) {
+        state.bgImage.currentTime = ((exportTimeMs * bgSpeed) / 1000) % state.bgImage.duration;
+      }
       bgSource = state.bgImage;
       bgW = state.bgImage.videoWidth;
       bgH = state.bgImage.videoHeight;
     } else if (state.bgType === 'gif' && state.bgGifFrames.length > 0) {
-      const bgFrameIdx = frameIndex % state.bgGifFrames.length;
+      let bgFrameIdx = 0;
+      if (isExport && typeof exportTimeMs === 'number') {
+        const totalBgDuration = state.bgGifDelays.reduce((a, b) => a + b, 0) || (state.bgGifFrames.length * 100);
+        const virtualBgTime = (exportTimeMs * bgSpeed) % totalBgDuration;
+        let accum = 0;
+        for (let k = 0; k < state.bgGifDelays.length; k++) {
+          accum += state.bgGifDelays[k] || 100;
+          if (accum > virtualBgTime) {
+            bgFrameIdx = k;
+            break;
+          }
+        }
+      } else {
+        bgFrameIdx = state.bgCurrentFrame % state.bgGifFrames.length;
+      }
       bgCanvas.width = state.bgGifWidth;
       bgCanvas.height = state.bgGifHeight;
       bgCtx.putImageData(state.bgGifFrames[bgFrameIdx], 0, 0);
@@ -601,6 +659,7 @@
   function startAnimation() {
     stopAnimation();
     state.lastFrameTime = performance.now();
+    state.lastBgFrameTime = performance.now();
     animate();
   }
 
@@ -619,12 +678,22 @@
     }
 
     const now = performance.now();
-    const speed = parseFloat(ctrlSpeed.value);
+    const speed = parseFloat(ctrlSpeed.value) || 1.0;
     const delay = (state.gifDelays[state.currentFrame] || 100) / speed;
 
     if (now - state.lastFrameTime >= delay) {
       state.currentFrame = (state.currentFrame + 1) % state.gifFrames.length;
       state.lastFrameTime = now;
+    }
+
+    // Animate background GIF independently if present
+    if (state.bgType === 'gif' && state.bgGifFrames.length > 0) {
+      const bgSpeed = parseFloat(ctrlBgSpeed.value) || 1.0;
+      const bgDelay = (state.bgGifDelays[state.bgCurrentFrame] || 100) / bgSpeed;
+      if (now - state.lastBgFrameTime >= bgDelay) {
+        state.bgCurrentFrame = (state.bgCurrentFrame + 1) % state.bgGifFrames.length;
+        state.lastBgFrameTime = now;
+      }
     }
 
     compositeFrame(state.currentFrame);
@@ -666,8 +735,8 @@
 
     const w = state.gifWidth;
     const h = state.gifHeight;
-    const quality = parseInt(ctrlQuality.value);
-    const speed = parseFloat(ctrlSpeed.value);
+    const quality = 10;
+    const speed = parseFloat(ctrlSpeed.value) || 1.0;
 
     // Create GIF encoder
     const gif = new GIF({
@@ -690,6 +759,7 @@
     const renderBg = document.createElement('canvas');
     const renderBgCtx = renderBg.getContext('2d');
 
+    let currentExportTimeMs = 0;
     for (let i = 0; i < state.gifFrames.length; i++) {
       if (state.exportCancelled) {
         gif.abort();
@@ -715,10 +785,10 @@
         renderTempCtx.putImageData(frame, 0, 0);
         renderCtx.drawImage(renderTemp, 0, 0);
 
-        drawBackground(renderCtx, w, h, i);
+        drawBackground(renderCtx, w, h, i, true, currentExportTimeMs);
       } else {
         // Green screen mode: background underneath, chroma-keyed frame on top
-        drawBackground(renderCtx, w, h, i);
+        drawBackground(renderCtx, w, h, i, true, currentExportTimeMs);
 
         renderTempCtx.clearRect(0, 0, w, h);
         renderTempCtx.putImageData(frame, 0, 0);
@@ -746,6 +816,7 @@
       }
 
       const delay = (state.gifDelays[i] || 100) / speed;
+      currentExportTimeMs += delay;
       gif.addFrame(renderCtx, { copy: true, delay: Math.max(20, Math.round(delay)) });
 
       // Yield to keep UI responsive
@@ -819,9 +890,13 @@
     state.bgType = null;
     state.bgImage = null;
     state.bgGifFrames = [];
+    state.bgCurrentFrame = 0;
     bgInfo.classList.add('hidden');
     uploadBg.classList.remove('hidden');
     inputBg.value = '';
+    groupBgSpeed.classList.add('hidden');
+    ctrlBgSpeed.value = 1;
+    $('#val-bg-speed').textContent = '1.0x';
   });
 
   // Play/Pause
@@ -845,7 +920,7 @@
   const controlMappings = [
     { ctrl: ctrlTolerance, valId: 'val-tolerance', format: (v) => v },
     { ctrl: ctrlSpeed, valId: 'val-speed', format: (v) => parseFloat(v).toFixed(1) + 'x' },
-    { ctrl: ctrlQuality, valId: 'val-quality', format: (v) => v },
+    { ctrl: ctrlBgSpeed, valId: 'val-bg-speed', format: (v) => parseFloat(v).toFixed(1) + 'x' },
   ];
 
   controlMappings.forEach(({ ctrl, valId, format }) => {
@@ -853,6 +928,9 @@
       $(`#${valId}`).textContent = format(ctrl.value);
       if (ctrl === ctrlTolerance) {
         await updateTracking();
+      }
+      if (ctrl === ctrlBgSpeed && state.bgType === 'video' && state.bgImage) {
+        state.bgImage.playbackRate = parseFloat(ctrlBgSpeed.value) || 1.0;
       }
       // Re-render current frame if paused
       if (!state.playing && state.gifFrames.length > 0) {
@@ -938,13 +1016,14 @@
     ctrlTolerance.value = 100;
     ctrlChromaColor.value = '#00ff00';
     ctrlSpeed.value = 1;
-    ctrlQuality.value = 10;
+    ctrlBgSpeed.value = 1;
+    groupBgSpeed.classList.add('hidden');
 
     // Reset labels
     $('#val-tolerance').textContent = '100';
     $('#val-chromacolor').textContent = '#00ff00';
     $('#val-speed').textContent = '1.0x';
-    $('#val-quality').textContent = '10';
+    $('#val-bg-speed').textContent = '1.0x';
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   });

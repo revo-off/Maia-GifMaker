@@ -234,35 +234,150 @@ body {
   animation: floatAuraTertiary 18s ease-in-out infinite alternate;
 }
 
-/* Floating Translucent Glass Bubbles (Bulles) */
-.floating-bubble {
+/* ==========================================================================
+   Liquid Blobs (Blobs Liquides)
+   Organically morphing molten glass / jelly blobs with fluid refractions
+   ========================================================================== */
+.liquid-blob {
   position: absolute;
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 28%,
+  pointer-events: none;
+  background: radial-gradient(circle at 32% 28%,
     rgba(255, 255, 255, 0.95) 0%,
-    rgba(255, 255, 255, 0.45) 20%,
-    rgba(255, 140, 180, 0.25) 50%,
-    rgba(147, 51, 234, 0.3) 80%,
-    rgba(255, 94, 54, 0.35) 100%
+    rgba(255, 255, 255, 0.52) 20%,
+    rgba(255, 140, 185, 0.38) 46%,
+    rgba(147, 51, 234, 0.35) 74%,
+    rgba(255, 84, 30, 0.42) 100%
   );
-  border: 1px solid rgba(255, 255, 255, 0.65);
+  border: 1.5px solid rgba(255, 255, 255, 0.8);
   box-shadow:
-    inset -4px -4px 10px rgba(124, 58, 237, 0.22),
-    inset 3px 3px 6px rgba(255, 255, 255, 0.9),
-    0 8px 24px rgba(180, 40, 90, 0.15);
-  backdrop-filter: blur(3px);
-  animation: floatDrift 16s ease-in-out infinite;
+    inset -6px -6px 16px rgba(124, 58, 237, 0.28),
+    inset 4px 4px 10px rgba(255, 255, 255, 0.95),
+    0 14px 34px rgba(180, 40, 90, 0.18),
+    0 0 25px rgba(255, 107, 74, 0.25);
+  backdrop-filter: blur(8px) saturate(170%);
+  -webkit-backdrop-filter: blur(8px) saturate(170%);
+  filter: drop-shadow(0 10px 24px rgba(220, 38, 127, 0.25));
+  will-change: transform, border-radius;
 }
 
-/* Individual bubble positions & timings */
-.bubble-1 { width: 110px; height: 110px; top: 12%; left: 32%; animation-duration: 18s; animation-delay: 0s; }
-.bubble-2 { width: 68px; height: 68px; top: 58%; left: 26%; animation-duration: 14s; animation-delay: -3s; }
-.bubble-3 { width: 84px; height: 84px; top: 78%; left: 56%; animation-duration: 20s; animation-delay: -7s; }
-.bubble-4 { width: 52px; height: 52px; top: 22%; left: 74%; animation-duration: 13s; animation-delay: -2s; }
-.bubble-5 { width: 94px; height: 94px; top: 44%; right: 6%; animation-duration: 17s; animation-delay: -5s; }
-.bubble-6 { width: 40px; height: 40px; top: 82%; left: 18%; animation-duration: 12s; animation-delay: -9s; }
-.bubble-7 { width: 60px; height: 60px; top: 8%; right: 28%; animation-duration: 15s; animation-delay: -6s; }
-.bubble-8 { width: 44px; height: 44px; top: 48%; left: 48%; animation-duration: 19s; animation-delay: -11s; }
+/* Individual liquid blob positions, dimensions & animation variants */
+.blob-1 {
+  width: 140px;
+  height: 120px;
+  top: 10%;
+  left: 30%;
+  animation: liquidMorph1 14s ease-in-out infinite alternate, floatDrift1 22s ease-in-out infinite;
+}
+
+.blob-2 {
+  width: 100px;
+  height: 90px;
+  top: 60%;
+  left: 23%;
+  animation: liquidMorph2 16s ease-in-out infinite alternate, floatDrift2 20s ease-in-out infinite;
+  animation-delay: -3s;
+}
+
+.blob-3 {
+  width: 125px;
+  height: 110px;
+  top: 74%;
+  left: 54%;
+  animation: liquidMorph3 18s ease-in-out infinite alternate, floatDrift3 24s ease-in-out infinite;
+  animation-delay: -6s;
+}
+
+.blob-4 {
+  width: 90px;
+  height: 85px;
+  top: 18%;
+  left: 72%;
+  animation: liquidMorph2 15s ease-in-out infinite alternate, floatDrift1 19s ease-in-out infinite;
+  animation-delay: -4s;
+}
+
+.blob-5 {
+  width: 155px;
+  height: 135px;
+  top: 40%;
+  right: 5%;
+  animation: liquidMorph1 19s ease-in-out infinite alternate, floatDrift2 25s ease-in-out infinite;
+  animation-delay: -8s;
+}
+
+.blob-6 {
+  width: 80px;
+  height: 75px;
+  top: 78%;
+  left: 17%;
+  animation: liquidMorph3 13s ease-in-out infinite alternate, floatDrift3 17s ease-in-out infinite;
+  animation-delay: -5s;
+}
+
+/* Dynamic Liquid Morphing Keyframes */
+@keyframes liquidMorph1 {
+  0% {
+    border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%;
+    transform: rotate(0deg) scale(1);
+  }
+  33% {
+    border-radius: 70% 30% 46% 54% / 30% 29% 71% 70%;
+    transform: rotate(120deg) scale(1.05);
+  }
+  66% {
+    border-radius: 35% 65% 31% 69% / 57% 59% 41% 43%;
+    transform: rotate(240deg) scale(0.96);
+  }
+  100% {
+    border-radius: 60% 40% 65% 35% / 40% 65% 35% 60%;
+    transform: rotate(360deg) scale(1.03);
+  }
+}
+
+@keyframes liquidMorph2 {
+  0% {
+    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;
+    transform: rotate(180deg) scale(1.08);
+  }
+  100% {
+    border-radius: 55% 45% 40% 60% / 35% 50% 50% 65%;
+    transform: rotate(360deg) scale(0.98);
+  }
+}
+
+@keyframes liquidMorph3 {
+  0% {
+    border-radius: 48% 52% 62% 38% / 38% 46% 54% 62%;
+    transform: rotate(0deg) scale(0.97);
+  }
+  50% {
+    border-radius: 65% 35% 40% 60% / 60% 40% 60% 40%;
+    transform: rotate(-160deg) scale(1.06);
+  }
+  100% {
+    border-radius: 40% 60% 55% 45% / 45% 55% 45% 55%;
+    transform: rotate(-360deg) scale(1);
+  }
+}
+
+@keyframes floatDrift1 {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  50% { transform: translateY(-26px) translateX(16px); }
+}
+
+@keyframes floatDrift2 {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  50% { transform: translateY(-20px) translateX(-20px); }
+}
+
+@keyframes floatDrift3 {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  50% { transform: translateY(-30px) translateX(12px); }
+}
 
 /* Golden Sparkling Stars scattered */
 .sparkle {
@@ -1272,31 +1387,7 @@ body {
   pointer-events: none;
 }
 
-.loading-badge {
-  position: absolute;
-  top: 14px;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1.5px solid var(--glass-border);
-  border-radius: var(--radius-full);
-  padding: 8px 22px;
-  font-family: var(--font-display);
-  font-size: 0.96rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  box-shadow: 0 8px 24px rgba(180, 40, 80, 0.16), 0 0 16px rgba(255, 84, 30, 0.2);
-  letter-spacing: -0.01em;
-}
 
-.loading-sparkle {
-  color: var(--gold-star);
-  font-size: 1.15rem;
-  animation: starTwinkle 2s ease-in-out infinite;
-}
 
 /* ==========================================================================
    Responsive Adaptations

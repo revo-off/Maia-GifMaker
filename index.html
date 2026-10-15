@@ -26,14 +26,12 @@
     <div class="aura-orb orb-secondary"></div>
     <div class="aura-orb orb-tertiary"></div>
 
-    <div class="floating-bubble bubble-1"></div>
-    <div class="floating-bubble bubble-2"></div>
-    <div class="floating-bubble bubble-3"></div>
-    <div class="floating-bubble bubble-4"></div>
-    <div class="floating-bubble bubble-5"></div>
-    <div class="floating-bubble bubble-6"></div>
-    <div class="floating-bubble bubble-7"></div>
-    <div class="floating-bubble bubble-8"></div>
+    <div class="liquid-blob blob-1"></div>
+    <div class="liquid-blob blob-2"></div>
+    <div class="liquid-blob blob-3"></div>
+    <div class="liquid-blob blob-4"></div>
+    <div class="liquid-blob blob-5"></div>
+    <div class="liquid-blob blob-6"></div>
 
     <!-- Golden twinkles -->
     <div class="sparkle sp-1">✦</div>
@@ -46,7 +44,7 @@
   <header id="app-header">
     <div class="header-left">
       <img src="misc/icon.png" alt="Goofy Icon" class="logo-icon" width="32" height="32">
-      <span class="logo-accent">Gifmakerbey</span>
+      <span class="logo-text"><span class="logo-accent">Gifmakerbey</span></span>
     </div>
     <div class="header-right">
       <button id="btn-reset" class="header-btn" title="Réinitialiser">
@@ -159,20 +157,20 @@
 
           <div class="control-divider"></div>
 
-          <div class="control-group">
+          <div class="control-group" id="group-speed">
             <label class="control-label">
-              <span>Vitesse GIF</span>
+              <span>Vitesse GIF principal</span>
               <span class="control-value" id="val-speed">1.0x</span>
             </label>
             <input type="range" id="ctrl-speed" min="0.1" max="3" value="1" step="0.1" class="slider">
           </div>
 
-          <div class="control-group">
+          <div class="control-group hidden" id="group-bg-speed">
             <label class="control-label">
-              <span>Qualité export</span>
-              <span class="control-value" id="val-quality">10</span>
+              <span id="label-bg-speed">Vitesse arrière-plan</span>
+              <span class="control-value" id="val-bg-speed">1.0x</span>
             </label>
-            <input type="range" id="ctrl-quality" min="1" max="20" value="10" class="slider">
+            <input type="range" id="ctrl-bg-speed" min="0.1" max="3" value="1" step="0.1" class="slider">
           </div>
         </div>
       </section>
@@ -261,12 +259,7 @@
   <!-- Loading indicator with axolotl animation (occupies bottom area outside vertical panel) -->
   <div id="loading-overlay" class="hidden" role="status" aria-live="polite">
     <div class="loading-axolotl-banner">
-      <img src="misc/axoltlanim.gif" alt="Axolotl Chargement" class="loading-axolotl-anim">
-      <div class="loading-badge">
-        <span class="loading-sparkle">✦</span>
-        <span>Chargement du GIF...</span>
-        <span class="loading-sparkle">✦</span>
-      </div>
+      <img id="loading-axolotl-img" src="misc/axoltlanim.gif" alt="Axolotl Chargement" class="loading-axolotl-anim">
     </div>
   </div>
 
