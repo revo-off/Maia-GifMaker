@@ -25,6 +25,7 @@
     animationId: null,
     lastFrameTime: 0,
     exportCancelled: false,
+    trackingData: [],     // Computed green screen bounding boxes and angles
   };
 
   // ── DOM Elements ──
@@ -48,11 +49,6 @@
   // Controls
   const ctrlTolerance = $('#ctrl-tolerance');
   const ctrlChromaColor = $('#ctrl-chromacolor');
-  const ctrlOpacity = $('#ctrl-opacity');
-  const ctrlScale = $('#ctrl-scale');
-  const ctrlRotation = $('#ctrl-rotation');
-  const ctrlPosX = $('#ctrl-posx');
-  const ctrlPosY = $('#ctrl-posy');
   const ctrlSpeed = $('#ctrl-speed');
   const ctrlQuality = $('#ctrl-quality');
 
@@ -165,6 +161,7 @@
       state.gifWidth = width;
       state.gifHeight = height;
       state.currentFrame = 0;
+      updateTracking();
 
       canvas.width = width;
       canvas.height = height;
@@ -317,7 +314,185 @@
     bgFilename.textContent = file.name;
   }
 
-  // ── Chroma Key Compositing ──
+  // ── Auto-Tracking & Compositing ──
+  function computeTrackingData(frames, chromaColor, tolerance) {
+    if (!frames || frames.length === 0) return [];
+
+    const rawBoxes = [];
+    for (let f = 0; f < frames.length; f++) {
+      const frame = frames[f];
+      const data = frame.data;
+      const w = frame.width;
+      const h = frame.height;
+
+      let count = 0;
+      let sumX = 0, sumY = 0;
+      let minX = w, maxX = -1, minY = h, maxY = -1;
+      const pts = [];
+
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const idx = (y * w + x) * 4;
+          const a = data[idx + 3];
+          if (a < 50) continue;
+
+          const r = data[idx];
+          const g = data[idx + 1];
+          const b = data[idx + 2];
+          const dist = colorDistance(r, g, b, chromaColor.r, chromaColor.g, chromaColor.b);
+
+          if (dist < tolerance) {
+            count++;
+            sumX += x;
+            sumY += y;
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+            pts.push(x, y);
+          }
+        }
+      }
+
+      if (count < 25) {
+        rawBoxes.push(null);
+      } else {
+        const cx = sumX / count;
+        const cy = sumY / count;
+        const boxW = maxX - minX + 1;
+        const boxH = maxY - minY + 1;
+
+        // Calculate orientation angle using central moments
+        let m20 = 0, m02 = 0, m11 = 0;
+        for (let p = 0; p < pts.length; p += 2) {
+          const dx = pts[p] - cx;
+          const dy = pts[p + 1] - cy;
+          m20 += dx * dx;
+          m02 += dy * dy;
+          m11 += dx * dy;
+        }
+        const angle = 0.5 * Math.atan2(2 * m11, m20 - m02);
+
+        rawBoxes.push({
+          count,
+          minX,
+          maxX,
+          minY,
+          maxY,
+          w: boxW,
+          h: boxH,
+          cx,
+          cy,
+          angle,
+        });
+      }
+    }
+
+    // Smoothing pass to eliminate jitter across adjacent frames
+    const smoothed = [];
+    let prev = null;
+    for (let i = 0; i < rawBoxes.length; i++) {
+      const cur = rawBoxes[i];
+      if (!cur) {
+        smoothed.push(null);
+        prev = null;
+        continue;
+      }
+      if (!prev) {
+        smoothed.push({ ...cur });
+        prev = cur;
+        continue;
+      }
+
+      const weight = Math.min(1, cur.count / 800);
+      const angle = prev.angle + weight * (cur.angle - prev.angle);
+      const cx = prev.cx * 0.2 + cur.cx * 0.8;
+      const cy = prev.cy * 0.2 + cur.cy * 0.8;
+      const w = prev.w * 0.2 + cur.w * 0.8;
+      const h = prev.h * 0.2 + cur.h * 0.8;
+
+      const item = {
+        ...cur,
+        cx,
+        cy,
+        w,
+        h,
+        angle,
+      };
+      smoothed.push(item);
+      prev = item;
+    }
+
+    return smoothed;
+  }
+
+  function updateTracking() {
+    if (state.gifFrames.length === 0) return;
+    const tolerance = parseFloat(ctrlTolerance.value);
+    const chromaColor = hexToRgb(ctrlChromaColor.value);
+    state.trackingData = computeTrackingData(state.gifFrames, chromaColor, tolerance);
+  }
+
+  function drawBackground(targetCtx, w, h, frameIndex) {
+    if (!state.bgType) return;
+
+    const bbox = state.trackingData && state.trackingData[frameIndex];
+    if (!bbox) {
+      // Green screen is not visible in this frame
+      return;
+    }
+
+    let bgSource = null;
+    let bgW = w;
+    let bgH = h;
+
+    if (state.bgType === 'image' && state.bgImage) {
+      bgSource = state.bgImage;
+      bgW = state.bgImage.naturalWidth || state.bgImage.width;
+      bgH = state.bgImage.naturalHeight || state.bgImage.height;
+    } else if (state.bgType === 'video' && state.bgImage) {
+      bgSource = state.bgImage;
+      bgW = state.bgImage.videoWidth;
+      bgH = state.bgImage.videoHeight;
+    } else if (state.bgType === 'gif' && state.bgGifFrames.length > 0) {
+      const bgFrameIdx = frameIndex % state.bgGifFrames.length;
+      bgCanvas.width = state.bgGifWidth;
+      bgCanvas.height = state.bgGifHeight;
+      bgCtx.putImageData(state.bgGifFrames[bgFrameIdx], 0, 0);
+      bgSource = bgCanvas;
+      bgW = state.bgGifWidth;
+      bgH = state.bgGifHeight;
+    }
+
+    if (!bgSource || bgW === 0 || bgH === 0) return;
+
+    targetCtx.save();
+
+    // Clip strictly to green screen bounding box (with slight margin for smooth edge blending)
+    targetCtx.beginPath();
+    targetCtx.rect(bbox.minX - 1, bbox.minY - 1, bbox.w + 2, bbox.h + 2);
+    targetCtx.clip();
+
+    // Center and rotate to match the green screen orientation
+    targetCtx.translate(bbox.cx, bbox.cy);
+    if (bbox.angle) {
+      targetCtx.rotate(bbox.angle);
+    }
+
+    // Scale to cover the green screen area
+    const cos = Math.abs(Math.cos(bbox.angle || 0));
+    const sin = Math.abs(Math.sin(bbox.angle || 0));
+    const targetW = bbox.w * cos + bbox.h * sin;
+    const targetH = bbox.w * sin + bbox.h * cos;
+    const coverScale = Math.max(targetW / bgW, targetH / bgH);
+    const drawW = bgW * coverScale;
+    const drawH = bgH * coverScale;
+
+    targetCtx.drawImage(bgSource, -drawW / 2, -drawH / 2, drawW, drawH);
+
+    targetCtx.restore();
+  }
+
   function compositeFrame(frameIndex) {
     if (state.gifFrames.length === 0) return;
 
@@ -325,59 +500,14 @@
     const w = state.gifWidth;
     const h = state.gifHeight;
 
-    // Get settings
     const tolerance = parseFloat(ctrlTolerance.value);
     const chromaColor = hexToRgb(ctrlChromaColor.value);
-    const opacity = parseFloat(ctrlOpacity.value) / 100;
-    const scale = parseFloat(ctrlScale.value) / 100;
-    const rotation = parseFloat(ctrlRotation.value) * Math.PI / 180;
-    const posX = parseFloat(ctrlPosX.value);
-    const posY = parseFloat(ctrlPosY.value);
 
     // Clear canvas
     ctx.clearRect(0, 0, w, h);
 
-    // Draw background if available
-    if (state.bgType) {
-      ctx.save();
-      ctx.globalAlpha = opacity;
-      ctx.translate(w / 2 + posX, h / 2 + posY);
-      ctx.rotate(rotation);
-      ctx.scale(scale, scale);
-
-      let bgSource = null;
-      let bgW = w;
-      let bgH = h;
-
-      if (state.bgType === 'image' && state.bgImage) {
-        bgSource = state.bgImage;
-        bgW = state.bgImage.naturalWidth || state.bgImage.width;
-        bgH = state.bgImage.naturalHeight || state.bgImage.height;
-      } else if (state.bgType === 'video' && state.bgImage) {
-        bgSource = state.bgImage;
-        bgW = state.bgImage.videoWidth;
-        bgH = state.bgImage.videoHeight;
-      } else if (state.bgType === 'gif' && state.bgGifFrames.length > 0) {
-        // Use corresponding frame from bg gif
-        const bgFrameIdx = frameIndex % state.bgGifFrames.length;
-        bgCanvas.width = state.bgGifWidth;
-        bgCanvas.height = state.bgGifHeight;
-        bgCtx.putImageData(state.bgGifFrames[bgFrameIdx], 0, 0);
-        bgSource = bgCanvas;
-        bgW = state.bgGifWidth;
-        bgH = state.bgGifHeight;
-      }
-
-      if (bgSource) {
-        // Scale to cover the canvas dimensions
-        const coverScale = Math.max(w / bgW, h / bgH);
-        const drawW = bgW * coverScale;
-        const drawH = bgH * coverScale;
-        ctx.drawImage(bgSource, -drawW / 2, -drawH / 2, drawW, drawH);
-      }
-
-      ctx.restore();
-    }
+    // Draw background tracked & scaled to the green screen
+    drawBackground(ctx, w, h, frameIndex);
 
     // Draw the GIF frame onto temp canvas
     tempCtx.clearRect(0, 0, w, h);
@@ -394,15 +524,13 @@
       const b = data[i + 2];
       const a = data[i + 3];
 
-      if (a === 0) continue; // Already transparent
+      if (a === 0) continue;
 
       const dist = colorDistance(r, g, b, chromaColor.r, chromaColor.g, chromaColor.b);
 
       if (dist < tolerance) {
-        // Fully transparent for close matches
         data[i + 3] = 0;
       } else if (dist < tolerance * 1.4) {
-        // Semi-transparent for edge pixels (smooth edges)
         const blend = (dist - tolerance) / (tolerance * 0.4);
         data[i + 3] = Math.round(a * Math.min(1, blend));
       }
@@ -492,7 +620,7 @@
       quality: quality,
       width: w,
       height: h,
-      workerScript: 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js',
+      workerScript: 'lib/gif.worker.js',
     });
 
     // Render each frame
@@ -523,53 +651,11 @@
       const frame = state.gifFrames[i];
       const tolerance = parseFloat(ctrlTolerance.value);
       const chromaColor = hexToRgb(ctrlChromaColor.value);
-      const opacity = parseFloat(ctrlOpacity.value) / 100;
-      const scale = parseFloat(ctrlScale.value) / 100;
-      const rotation = parseFloat(ctrlRotation.value) * Math.PI / 180;
-      const posX = parseFloat(ctrlPosX.value);
-      const posY = parseFloat(ctrlPosY.value);
 
       renderCtx.clearRect(0, 0, w, h);
 
-      // Draw bg
-      if (state.bgType) {
-        renderCtx.save();
-        renderCtx.globalAlpha = opacity;
-        renderCtx.translate(w / 2 + posX, h / 2 + posY);
-        renderCtx.rotate(rotation);
-        renderCtx.scale(scale, scale);
-
-        let bgSource = null;
-        let bgW = w;
-        let bgH = h;
-
-        if (state.bgType === 'image' && state.bgImage) {
-          bgSource = state.bgImage;
-          bgW = state.bgImage.naturalWidth || state.bgImage.width;
-          bgH = state.bgImage.naturalHeight || state.bgImage.height;
-        } else if (state.bgType === 'video' && state.bgImage) {
-          bgSource = state.bgImage;
-          bgW = state.bgImage.videoWidth;
-          bgH = state.bgImage.videoHeight;
-        } else if (state.bgType === 'gif' && state.bgGifFrames.length > 0) {
-          const bgFrameIdx = i % state.bgGifFrames.length;
-          renderBg.width = state.bgGifWidth;
-          renderBg.height = state.bgGifHeight;
-          renderBgCtx.putImageData(state.bgGifFrames[bgFrameIdx], 0, 0);
-          bgSource = renderBg;
-          bgW = state.bgGifWidth;
-          bgH = state.bgGifHeight;
-        }
-
-        if (bgSource) {
-          const coverScale = Math.max(w / bgW, h / bgH);
-          const drawW = bgW * coverScale;
-          const drawH = bgH * coverScale;
-          renderCtx.drawImage(bgSource, -drawW / 2, -drawH / 2, drawW, drawH);
-        }
-
-        renderCtx.restore();
-      }
+      // Draw tracked background
+      drawBackground(renderCtx, w, h, i);
 
       // Chroma key
       renderTempCtx.clearRect(0, 0, w, h);
@@ -695,11 +781,6 @@
   // Controls - update value displays
   const controlMappings = [
     { ctrl: ctrlTolerance, valId: 'val-tolerance', format: (v) => v },
-    { ctrl: ctrlOpacity, valId: 'val-opacity', format: (v) => v + '%' },
-    { ctrl: ctrlScale, valId: 'val-scale', format: (v) => v + '%' },
-    { ctrl: ctrlRotation, valId: 'val-rotation', format: (v) => v + '°' },
-    { ctrl: ctrlPosX, valId: 'val-posx', format: (v) => v },
-    { ctrl: ctrlPosY, valId: 'val-posy', format: (v) => v },
     { ctrl: ctrlSpeed, valId: 'val-speed', format: (v) => parseFloat(v).toFixed(1) + 'x' },
     { ctrl: ctrlQuality, valId: 'val-quality', format: (v) => v },
   ];
@@ -707,6 +788,9 @@
   controlMappings.forEach(({ ctrl, valId, format }) => {
     ctrl.addEventListener('input', () => {
       $(`#${valId}`).textContent = format(ctrl.value);
+      if (ctrl === ctrlTolerance) {
+        updateTracking();
+      }
       // Re-render current frame if paused
       if (!state.playing && state.gifFrames.length > 0) {
         compositeFrame(state.currentFrame);
@@ -716,6 +800,7 @@
 
   ctrlChromaColor.addEventListener('input', () => {
     $('#val-chromacolor').textContent = ctrlChromaColor.value;
+    updateTracking();
     if (!state.playing && state.gifFrames.length > 0) {
       compositeFrame(state.currentFrame);
     }
@@ -747,6 +832,7 @@
     state.gifFrames = [];
     state.gifDelays = [];
     state.currentFrame = 0;
+    state.trackingData = [];
     canvas.classList.remove('active');
     emptyState.classList.remove('hidden');
     playbackBar.classList.add('hidden');
@@ -771,22 +857,12 @@
     // Reset controls
     ctrlTolerance.value = 100;
     ctrlChromaColor.value = '#00ff00';
-    ctrlOpacity.value = 100;
-    ctrlScale.value = 100;
-    ctrlRotation.value = 0;
-    ctrlPosX.value = 0;
-    ctrlPosY.value = 0;
     ctrlSpeed.value = 1;
     ctrlQuality.value = 10;
 
     // Reset labels
     $('#val-tolerance').textContent = '100';
     $('#val-chromacolor').textContent = '#00ff00';
-    $('#val-opacity').textContent = '100%';
-    $('#val-scale').textContent = '100%';
-    $('#val-rotation').textContent = '0°';
-    $('#val-posx').textContent = '0';
-    $('#val-posy').textContent = '0';
     $('#val-speed').textContent = '1.0x';
     $('#val-quality').textContent = '10';
 
