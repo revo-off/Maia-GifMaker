@@ -28,6 +28,7 @@
     lastFrameTime: 0,
     exportCancelled: false,
     trackingData: [],     // Computed green screen bounding boxes and angles
+    gsTrackingData: null, // Cached green screen tracking from the gs version
   };
 
   // ── DOM Elements ──
@@ -162,7 +163,7 @@
       state.gifWidth = width;
       state.gifHeight = height;
       state.currentFrame = 0;
-      updateTracking();
+      await updateTracking();
 
       canvas.width = width;
       canvas.height = height;
@@ -436,11 +437,46 @@
     return smoothed;
   }
 
-  function updateTracking() {
+  function mapGsTrackingToFrames(gsTrack, targetCount) {
+    if (!gsTrack || gsTrack.length === 0) return [];
+    const res = [];
+    for (let i = 0; i < targetCount; i++) {
+      const ratio = targetCount > 1 ? i / (targetCount - 1) : 0;
+      const gsIndex = Math.min(gsTrack.length - 1, Math.max(0, Math.round(ratio * (gsTrack.length - 1))));
+      const item = gsTrack[gsIndex];
+      res.push(item ? { ...item } : null);
+    }
+    return res;
+  }
+
+  async function updateTracking() {
     if (state.gifFrames.length === 0) return;
     const tolerance = parseFloat(ctrlTolerance.value);
     const chromaColor = hexToRgb(ctrlChromaColor.value);
-    state.trackingData = computeTrackingData(state.gifFrames, chromaColor, tolerance);
+
+    if (state.transparentBackground) {
+      // In Fond Transparent mode, follow the same motion as the green screen card!
+      if (!state.gsTrackingData || state.gsTrackingData.length === 0) {
+        const entry = state.selectedEntry || (state.catalog.length > 0 ? (state.catalog.find(e => e.id === state.selectedGifId) || state.catalog[0]) : null);
+        if (entry) {
+          const gsFilename = getGifFilename(entry, false);
+          try {
+            const res = await fetch(`gifs/${gsFilename}`);
+            if (res.ok) {
+              const buf = await res.arrayBuffer();
+              const { frames } = await decodeGif(buf);
+              state.gsTrackingData = computeTrackingData(frames, chromaColor, tolerance);
+            }
+          } catch (e) {
+            console.error('Failed to load GS tracking data:', e);
+          }
+        }
+      }
+      state.trackingData = mapGsTrackingToFrames(state.gsTrackingData, state.gifFrames.length);
+    } else {
+      state.gsTrackingData = computeTrackingData(state.gifFrames, chromaColor, tolerance);
+      state.trackingData = state.gsTrackingData;
+    }
   }
 
   function drawBackground(targetCtx, w, h, frameIndex) {
@@ -470,19 +506,11 @@
 
     if (!bgSource || bgW === 0 || bgH === 0) return;
 
-    targetCtx.save();
-
     // Track and scale to the green screen card
     const bbox = state.trackingData && state.trackingData[frameIndex];
-    if (!bbox) {
-      targetCtx.restore();
-      return;
-    }
+    if (!bbox) return;
 
-    // Clip strictly to green screen bounding box (with slight margin for smooth edge blending)
-    targetCtx.beginPath();
-    targetCtx.rect(bbox.minX - 1, bbox.minY - 1, bbox.w + 2, bbox.h + 2);
-    targetCtx.clip();
+    targetCtx.save();
 
     // Center and rotate to match the green screen orientation
     targetCtx.translate(bbox.cx, bbox.cy);
@@ -490,11 +518,22 @@
       targetCtx.rotate(bbox.angle);
     }
 
+    // Clip strictly to green screen card with clean corners
+    const cardW = bbox.w;
+    const cardH = bbox.h;
+    targetCtx.beginPath();
+    if (typeof targetCtx.roundRect === 'function') {
+      targetCtx.roundRect(-cardW / 2, -cardH / 2, cardW, cardH, 3);
+    } else {
+      targetCtx.rect(-cardW / 2, -cardH / 2, cardW, cardH);
+    }
+    targetCtx.clip();
+
     // Scale to cover the green screen area
     const cos = Math.abs(Math.cos(bbox.angle || 0));
     const sin = Math.abs(Math.sin(bbox.angle || 0));
-    const targetW = bbox.w * cos + bbox.h * sin;
-    const targetH = bbox.w * sin + bbox.h * cos;
+    const targetW = cardW * cos + cardH * sin;
+    const targetH = cardW * sin + cardH * cos;
     const coverScale = Math.max(targetW / bgW, targetH / bgH);
     const drawW = bgW * coverScale;
     const drawH = bgH * coverScale;
@@ -516,40 +555,46 @@
     // Clear canvas
     ctx.clearRect(0, 0, w, h);
 
-    // Draw background
-    drawBackground(ctx, w, h, frameIndex);
+    if (state.transparentBackground) {
+      // In Fond Transparent mode: draw chosen GIF frame first,
+      // and draw the tracked background IN SUPERPOSITION (ON TOP)
+      tempCtx.clearRect(0, 0, w, h);
+      tempCtx.putImageData(frame, 0, 0);
+      ctx.drawImage(tempCanvas, 0, 0);
 
-    // Apply chroma key: make green pixels transparent
-    tempCtx.clearRect(0, 0, w, h);
-    tempCtx.putImageData(frame, 0, 0);
+      drawBackground(ctx, w, h, frameIndex);
+    } else {
+      // In Green Screen mode: draw background underneath,
+      // chroma key green pixels on frame and draw on top
+      drawBackground(ctx, w, h, frameIndex);
 
-    // Get the frame pixel data for chroma keying
-    const frameData = tempCtx.getImageData(0, 0, w, h);
-    const data = frameData.data;
+      tempCtx.clearRect(0, 0, w, h);
+      tempCtx.putImageData(frame, 0, 0);
 
-    // Apply chroma key: make green pixels transparent
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-      const a = data[i + 3];
+      const frameData = tempCtx.getImageData(0, 0, w, h);
+      const data = frameData.data;
 
-      if (a === 0) continue;
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const a = data[i + 3];
 
-      const dist = colorDistance(r, g, b, chromaColor.r, chromaColor.g, chromaColor.b);
+        if (a === 0) continue;
 
-      if (dist < tolerance) {
-        data[i + 3] = 0;
-      } else if (dist < tolerance * 1.4) {
-        const blend = (dist - tolerance) / (tolerance * 0.4);
-        data[i + 3] = Math.round(a * Math.min(1, blend));
+        const dist = colorDistance(r, g, b, chromaColor.r, chromaColor.g, chromaColor.b);
+
+        if (dist < tolerance) {
+          data[i + 3] = 0;
+        } else if (dist < tolerance * 1.4) {
+          const blend = (dist - tolerance) / (tolerance * 0.4);
+          data[i + 3] = Math.round(a * Math.min(1, blend));
+        }
       }
+
+      tempCtx.putImageData(frameData, 0, 0);
+      ctx.drawImage(tempCanvas, 0, 0);
     }
-
-    tempCtx.putImageData(frameData, 0, 0);
-
-    // Draw chroma-keyed frame on top of background
-    ctx.drawImage(tempCanvas, 0, 0);
   }
 
   // ── Animation Loop ──
@@ -664,33 +709,41 @@
 
       renderCtx.clearRect(0, 0, w, h);
 
-      // Draw background
-      drawBackground(renderCtx, w, h, i);
+      if (state.transparentBackground) {
+        // Superposition mode: draw chosen GIF frame first, then tracked background on top
+        renderTempCtx.clearRect(0, 0, w, h);
+        renderTempCtx.putImageData(frame, 0, 0);
+        renderCtx.drawImage(renderTemp, 0, 0);
 
-      // Chroma key
-      renderTempCtx.clearRect(0, 0, w, h);
-      renderTempCtx.putImageData(frame, 0, 0);
-      const frameData = renderTempCtx.getImageData(0, 0, w, h);
-      const data = frameData.data;
+        drawBackground(renderCtx, w, h, i);
+      } else {
+        // Green screen mode: background underneath, chroma-keyed frame on top
+        drawBackground(renderCtx, w, h, i);
 
-      for (let j = 0; j < data.length; j += 4) {
-        const r = data[j];
-        const g = data[j + 1];
-        const b = data[j + 2];
-        const a = data[j + 3];
-        if (a === 0) continue;
+        renderTempCtx.clearRect(0, 0, w, h);
+        renderTempCtx.putImageData(frame, 0, 0);
+        const frameData = renderTempCtx.getImageData(0, 0, w, h);
+        const data = frameData.data;
 
-        const dist = colorDistance(r, g, b, chromaColor.r, chromaColor.g, chromaColor.b);
-        if (dist < tolerance) {
-          data[j + 3] = 0;
-        } else if (dist < tolerance * 1.4) {
-          const blend = (dist - tolerance) / (tolerance * 0.4);
-          data[j + 3] = Math.round(a * Math.min(1, blend));
+        for (let j = 0; j < data.length; j += 4) {
+          const r = data[j];
+          const g = data[j + 1];
+          const b = data[j + 2];
+          const a = data[j + 3];
+          if (a === 0) continue;
+
+          const dist = colorDistance(r, g, b, chromaColor.r, chromaColor.g, chromaColor.b);
+          if (dist < tolerance) {
+            data[j + 3] = 0;
+          } else if (dist < tolerance * 1.4) {
+            const blend = (dist - tolerance) / (tolerance * 0.4);
+            data[j + 3] = Math.round(a * Math.min(1, blend));
+          }
         }
-      }
 
-      renderTempCtx.putImageData(frameData, 0, 0);
-      renderCtx.drawImage(renderTemp, 0, 0);
+        renderTempCtx.putImageData(frameData, 0, 0);
+        renderCtx.drawImage(renderTemp, 0, 0);
+      }
 
       const delay = (state.gifDelays[i] || 100) / speed;
       gif.addFrame(renderCtx, { copy: true, delay: Math.max(20, Math.round(delay)) });
@@ -796,10 +849,10 @@
   ];
 
   controlMappings.forEach(({ ctrl, valId, format }) => {
-    ctrl.addEventListener('input', () => {
+    ctrl.addEventListener('input', async () => {
       $(`#${valId}`).textContent = format(ctrl.value);
       if (ctrl === ctrlTolerance) {
-        updateTracking();
+        await updateTracking();
       }
       // Re-render current frame if paused
       if (!state.playing && state.gifFrames.length > 0) {
@@ -808,9 +861,9 @@
     });
   });
 
-  ctrlChromaColor.addEventListener('input', () => {
+  ctrlChromaColor.addEventListener('input', async () => {
     $('#val-chromacolor').textContent = ctrlChromaColor.value;
-    updateTracking();
+    await updateTracking();
     if (!state.playing && state.gifFrames.length > 0) {
       compositeFrame(state.currentFrame);
     }
@@ -854,6 +907,7 @@
     state.selectedGifId = null;
     state.selectedEntry = null;
     state.transparentBackground = false;
+    state.gsTrackingData = null;
     if (chkTransparent) chkTransparent.checked = false;
     state.gifFrames = [];
     state.gifDelays = [];

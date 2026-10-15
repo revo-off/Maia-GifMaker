@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Goofy - Gifmakerbey</title>
+  <title>Gifmakerbey</title>
   <link rel="icon" type="image/png" href="misc/icon.png">
   <link rel="apple-touch-icon" href="misc/icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -46,7 +46,7 @@
   <header id="app-header">
     <div class="header-left">
       <img src="misc/icon.png" alt="Goofy Icon" class="logo-icon" width="32" height="32">
-      <span class="logo-text">Goofy <span class="logo-accent">Gifmakerbey</span></span>
+      <span class="logo-accent">Gifmakerbey</span>
     </div>
     <div class="header-right">
       <button id="btn-reset" class="header-btn" title="Réinitialiser">
@@ -258,12 +258,15 @@
     </div>
   </div>
 
-  <!-- Loading indicator with axolotl animation (bottom of page, outside vertical panel) -->
+  <!-- Loading indicator with axolotl animation (occupies bottom area outside vertical panel) -->
   <div id="loading-overlay" class="hidden" role="status" aria-live="polite">
-    <img src="misc/axoltlanim.gif" alt="Chargement..." class="loading-axolotl-anim">
-    <div class="loading-info">
-      <span class="loading-title">Chargement...</span>
-      <p class="loading-sub">Décodage du GIF en cours</p>
+    <div class="loading-axolotl-banner">
+      <img src="misc/axoltlanim.gif" alt="Axolotl Chargement" class="loading-axolotl-anim">
+      <div class="loading-badge">
+        <span class="loading-sparkle">✦</span>
+        <span>Chargement du GIF...</span>
+        <span class="loading-sparkle">✦</span>
+      </div>
     </div>
   </div>
 
