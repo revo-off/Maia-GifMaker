@@ -8,6 +8,8 @@
 
   // ── State ──
   const state = {
+    catalog: [],          // GIF catalog entries
+    selectedGifId: null,  // Currently selected GIF id
     gifFrames: [],        // Decoded GIF frames (ImageData[])
     gifDelays: [],        // Frame delays in ms
     gifWidth: 0,
@@ -34,14 +36,13 @@
   const bgCanvas = document.createElement('canvas');
   const bgCtx = bgCanvas.getContext('2d');
 
-  // Upload elements
-  const uploadGif = $('#upload-gif');
-  const inputGif = $('#input-gif');
+  // Gallery
+  const gifGallery = $('#gif-gallery');
+
+  // Upload elements (background only)
   const uploadBg = $('#upload-bg');
   const inputBg = $('#input-bg');
-  const gifInfo = $('#gif-info');
   const bgInfo = $('#bg-info');
-  const gifFilename = $('#gif-filename');
   const bgFilename = $('#bg-filename');
 
   // Controls
@@ -149,12 +150,14 @@
     return { frames, delays, width, height };
   }
 
-  // ── GIF Loading ──
-  async function loadGif(file) {
+  // ── GIF Loading (from URL) ──
+  async function loadGifFromUrl(url) {
     loadingOverlay.classList.remove('hidden');
 
     try {
-      const buffer = await file.arrayBuffer();
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch GIF');
+      const buffer = await response.arrayBuffer();
       const { frames, delays, width, height } = await decodeGif(buffer);
 
       state.gifFrames = frames;
@@ -175,9 +178,6 @@
       canvas.classList.add('active');
       playbackBar.classList.remove('hidden');
       exportArea.classList.remove('hidden');
-      gifInfo.classList.remove('hidden');
-      uploadGif.classList.add('hidden');
-      gifFilename.textContent = file.name;
 
       frameCounter.textContent = `1 / ${frames.length}`;
 
@@ -187,10 +187,81 @@
       startAnimation();
     } catch (err) {
       console.error('GIF decode error:', err);
-      alert('Erreur lors du décodage du GIF. Veuillez essayer un autre fichier.');
+      alert('Erreur lors du chargement du GIF. Veuillez réessayer.');
     } finally {
       loadingOverlay.classList.add('hidden');
     }
+  }
+
+  // ── Catalog & Gallery ──
+  async function loadCatalog() {
+    try {
+      const response = await fetch('gifs/catalog.json');
+      if (!response.ok) throw new Error('Catalog not found');
+      state.catalog = await response.json();
+      renderGallery();
+    } catch (err) {
+      console.error('Catalog load error:', err);
+      gifGallery.innerHTML = '<div class="gallery-empty">Aucun GIF disponible</div>';
+    }
+  }
+
+  function renderGallery() {
+    gifGallery.innerHTML = '';
+
+    if (state.catalog.length === 0) {
+      gifGallery.innerHTML = '<div class="gallery-empty">Aucun GIF disponible</div>';
+      return;
+    }
+
+    state.catalog.forEach((entry) => {
+      const card = document.createElement('div');
+      card.className = 'gif-card';
+      card.dataset.id = entry.id;
+      card.tabIndex = 0;
+      card.setAttribute('role', 'button');
+      card.setAttribute('aria-label', entry.name);
+
+      if (state.selectedGifId === entry.id) {
+        card.classList.add('selected');
+      }
+
+      const img = document.createElement('img');
+      img.src = `gifs/${entry.thumbnail}`;
+      img.alt = entry.name;
+      img.loading = 'lazy';
+
+      const label = document.createElement('span');
+      label.className = 'gif-card-label';
+      label.textContent = entry.name;
+
+      card.appendChild(img);
+      card.appendChild(label);
+
+      card.addEventListener('click', () => selectGif(entry));
+      card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          selectGif(entry);
+        }
+      });
+
+      gifGallery.appendChild(card);
+    });
+  }
+
+  async function selectGif(entry) {
+    // Deselect previous
+    const prev = gifGallery.querySelector('.gif-card.selected');
+    if (prev) prev.classList.remove('selected');
+
+    // Select new
+    state.selectedGifId = entry.id;
+    const card = gifGallery.querySelector(`[data-id="${entry.id}"]`);
+    if (card) card.classList.add('selected');
+
+    // Load the GIF
+    await loadGifFromUrl(`gifs/${entry.file}`);
   }
 
   // ── Background Loading ──
@@ -556,7 +627,7 @@
 
   // ── Event Handlers ──
 
-  // Upload GIF
+  // Background upload
   function setupUpload(zone, input, handler) {
     zone.addEventListener('click', () => input.click());
     zone.addEventListener('keydown', (e) => {
@@ -589,24 +660,7 @@
     });
   }
 
-  setupUpload(uploadGif, inputGif, loadGif);
   setupUpload(uploadBg, inputBg, loadBackground);
-
-  // Remove buttons
-  $('#btn-remove-gif').addEventListener('click', () => {
-    stopAnimation();
-    state.gifFrames = [];
-    state.gifDelays = [];
-    state.currentFrame = 0;
-    canvas.classList.remove('active');
-    emptyState.classList.remove('hidden');
-    playbackBar.classList.add('hidden');
-    exportArea.classList.add('hidden');
-    gifInfo.classList.add('hidden');
-    uploadGif.classList.remove('hidden');
-    inputGif.value = '';
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-  });
 
   $('#btn-remove-bg').addEventListener('click', () => {
     if (state.bgType === 'video' && state.bgImage) {
@@ -688,7 +742,8 @@
   btnReset.addEventListener('click', () => {
     stopAnimation();
 
-    // Reset GIF
+    // Reset GIF selection
+    state.selectedGifId = null;
     state.gifFrames = [];
     state.gifDelays = [];
     state.currentFrame = 0;
@@ -696,9 +751,10 @@
     emptyState.classList.remove('hidden');
     playbackBar.classList.add('hidden');
     exportArea.classList.add('hidden');
-    gifInfo.classList.add('hidden');
-    uploadGif.classList.remove('hidden');
-    inputGif.value = '';
+
+    // Deselect gallery cards
+    const selected = gifGallery.querySelector('.gif-card.selected');
+    if (selected) selected.classList.remove('selected');
 
     // Reset BG
     if (state.bgType === 'video' && state.bgImage) {
@@ -740,5 +796,8 @@
   // ── Prevent default drag on page ──
   document.addEventListener('dragover', (e) => e.preventDefault());
   document.addEventListener('drop', (e) => e.preventDefault());
+
+  // ── Initialize: Load Catalog ──
+  loadCatalog();
 
 })();
