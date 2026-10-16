@@ -64,15 +64,37 @@
   const exportPercent = $('#export-percent');
   const modalTitle = $('#modal-title');
   const modalSubtitle = $('#modal-subtitle');
+  const btnCancelExport = $('#btn-cancel-export');
   const btnDownload = $('#btn-download');
   const btnCloseExport = $('#btn-close-export');
+  const btnFinishExport = $('#btn-finish-export');
   const modalActionsDone = $('#modal-actions-done');
   const exportModalIcon = $('#export-modal .modal-icon');
   const exportModalBackdrop = $('#export-modal .modal-backdrop');
 
+  const groupBgStartFrame = $('#group-bg-start-frame');
+  const ctrlBgStartFrame = $('#ctrl-bg-start-frame');
+  const valBgStartFrame = $('#val-bg-start-frame');
+  const btnUseCurrentFrame = $('#btn-use-current-frame');
+  const ctrlBgBeforeStart = $('#ctrl-bg-before-start');
+
   const emptyState = $('#empty-state');
   const loadingModal = $('#loading-modal');
   const loadingSubtitle = $('#loading-subtitle');
+
+  function updateBgStartFrameLimits() {
+    if (!ctrlBgStartFrame) return;
+    const total = state.gifFrames.length || 1;
+    ctrlBgStartFrame.max = total;
+    let val = parseInt(ctrlBgStartFrame.value, 10) || 1;
+    if (val > total) {
+      val = 1;
+      ctrlBgStartFrame.value = 1;
+    }
+    if (valBgStartFrame) {
+      valBgStartFrame.textContent = `Frame ${val} / ${total}`;
+    }
+  }
 
   function hexToRgb(hex) {
     const r = parseInt(hex.slice(1, 3), 16);
@@ -172,6 +194,10 @@
       exportArea.classList.remove('hidden');
 
       frameCounter.textContent = `1 / ${frames.length}`;
+      updateBgStartFrameLimits();
+      if (state.bgType && groupBgStartFrame) {
+        groupBgStartFrame.classList.remove('hidden');
+      }
 
       state.playing = true;
       updatePlayButton();
@@ -278,6 +304,8 @@
         state.bgImage = null;
         groupBgSpeed.classList.remove('hidden');
         labelBgSpeed.textContent = 'Vitesse GIF arrière-plan';
+        if (groupBgStartFrame) groupBgStartFrame.classList.remove('hidden');
+        updateBgStartFrameLimits();
       } catch (err) {
         console.error('BG GIF decode error:', err);
         alert('Erreur lors du décodage du GIF d\'arrière-plan.');
@@ -302,6 +330,8 @@
       state.bgGifFrames = [];
       groupBgSpeed.classList.remove('hidden');
       labelBgSpeed.textContent = 'Vitesse vidéo arrière-plan';
+      if (groupBgStartFrame) groupBgStartFrame.classList.remove('hidden');
+      updateBgStartFrameLimits();
     } else if (type.startsWith('image/')) {
       state.bgType = 'image';
       const img = new Image();
@@ -312,11 +342,16 @@
       state.bgImage = img;
       state.bgGifFrames = [];
       groupBgSpeed.classList.add('hidden');
+      if (groupBgStartFrame) groupBgStartFrame.classList.remove('hidden');
+      updateBgStartFrameLimits();
     }
 
     bgInfo.classList.remove('hidden');
     uploadBg.classList.add('hidden');
     bgFilename.textContent = file.name;
+    if (!state.playing && state.gifFrames.length > 0) {
+      compositeFrame(state.currentFrame);
+    }
   }
 
   function computeTrackingData(frames, chromaColor, tolerance) {
@@ -476,28 +511,62 @@
     let bgW = w;
     let bgH = h;
     const bgSpeed = parseFloat(ctrlBgSpeed.value) || 1.0;
+    const mainSpeed = parseFloat(ctrlSpeed.value) || 1.0;
+    const startFrame = parseInt(ctrlBgStartFrame ? ctrlBgStartFrame.value : '1', 10) || 1;
+    const startIndex = Math.max(0, startFrame - 1);
+    const beforeStart = ctrlBgBeforeStart ? ctrlBgBeforeStart.value : 'hide';
+    const totalMainFrames = state.gifFrames.length || 1;
 
     if (state.bgType === 'image' && state.bgImage) {
+      if (frameIndex < startIndex && beforeStart === 'hide') {
+        return;
+      }
       bgSource = state.bgImage;
       bgW = state.bgImage.naturalWidth || state.bgImage.width;
       bgH = state.bgImage.naturalHeight || state.bgImage.height;
     } else if (state.bgType === 'video' && state.bgImage) {
-      if (isExport && typeof exportTimeMs === 'number' && state.bgImage.duration) {
-        state.bgImage.currentTime = ((exportTimeMs * bgSpeed) / 1000) % state.bgImage.duration;
+      if (frameIndex < startIndex && beforeStart === 'hide') {
+        return;
+      }
+      let relFrame = 0;
+      if (frameIndex < startIndex) {
+        if (beforeStart === 'freeze') {
+          relFrame = 0;
+        } else if (beforeStart === 'loop') {
+          relFrame = (frameIndex - startIndex + totalMainFrames) % totalMainFrames;
+        }
+      } else {
+        relFrame = frameIndex - startIndex;
+      }
+
+      if (state.bgImage.duration) {
+        const secPerMainFrame = (1 / 14) / mainSpeed;
+        const videoTime = (relFrame * secPerMainFrame) * bgSpeed;
+        state.bgImage.currentTime = videoTime % state.bgImage.duration;
       }
       bgSource = state.bgImage;
       bgW = state.bgImage.videoWidth;
       bgH = state.bgImage.videoHeight;
     } else if (state.bgType === 'gif' && state.bgGifFrames.length > 0) {
-      let bgFrameIdx = 0;
-      if (isExport && typeof exportTimeMs === 'number') {
-        const bgFrameDelay = (1000 / 24) / bgSpeed;
-        const totalBgDuration = state.bgGifFrames.length * bgFrameDelay;
-        const virtualBgTime = exportTimeMs % totalBgDuration;
-        bgFrameIdx = Math.floor(virtualBgTime / bgFrameDelay) % state.bgGifFrames.length;
-      } else {
-        bgFrameIdx = state.bgCurrentFrame % state.bgGifFrames.length;
+      if (frameIndex < startIndex && beforeStart === 'hide') {
+        return;
       }
+
+      let bgFrameIdx = 0;
+      if (frameIndex < startIndex) {
+        if (beforeStart === 'freeze') {
+          bgFrameIdx = 0;
+        } else if (beforeStart === 'loop') {
+          const relFrame = (frameIndex - startIndex + totalMainFrames) % totalMainFrames;
+          const bgFramesElapsed = relFrame * (bgSpeed / mainSpeed);
+          bgFrameIdx = Math.floor(bgFramesElapsed) % state.bgGifFrames.length;
+        }
+      } else {
+        const relFrame = frameIndex - startIndex;
+        const bgFramesElapsed = relFrame * (bgSpeed / mainSpeed);
+        bgFrameIdx = Math.floor(bgFramesElapsed) % state.bgGifFrames.length;
+      }
+
       bgCanvas.width = state.bgGifWidth;
       bgCanvas.height = state.bgGifHeight;
       bgCtx.putImageData(state.bgGifFrames[bgFrameIdx], 0, 0);
@@ -611,20 +680,11 @@
 
     const now = performance.now();
     const speed = parseFloat(ctrlSpeed.value) || 1.0;
-    const delay = (1000 / 24) / speed;
+    const delay = (1000 / 14) / speed;
 
     if (now - state.lastFrameTime >= delay) {
       state.currentFrame = (state.currentFrame + 1) % state.gifFrames.length;
       state.lastFrameTime = now;
-    }
-
-    if (state.bgType === 'gif' && state.bgGifFrames.length > 0) {
-      const bgSpeed = parseFloat(ctrlBgSpeed.value) || 1.0;
-      const bgDelay = (1000 / 24) / bgSpeed;
-      if (now - state.lastBgFrameTime >= bgDelay) {
-        state.bgCurrentFrame = (state.bgCurrentFrame + 1) % state.bgGifFrames.length;
-        state.lastBgFrameTime = now;
-      }
     }
 
     compositeFrame(state.currentFrame);
@@ -742,7 +802,7 @@
         renderCtx.drawImage(renderTemp, 0, 0);
       }
 
-      const delay = (1000 / 24) / speed;
+      const delay = (1000 / 14) / speed;
       currentExportTimeMs += delay;
       gif.addFrame(renderCtx, { copy: true, delay: Math.max(20, Math.round(delay)) });
 
@@ -828,6 +888,13 @@
     groupBgSpeed.classList.add('hidden');
     ctrlBgSpeed.value = 1;
     $('#val-bg-speed').textContent = '1.0x';
+    if (groupBgStartFrame) groupBgStartFrame.classList.add('hidden');
+    if (ctrlBgStartFrame) ctrlBgStartFrame.value = 1;
+    updateBgStartFrameLimits();
+    setBeforeStartOption('hide');
+    if (!state.playing && state.gifFrames.length > 0) {
+      compositeFrame(state.currentFrame);
+    }
   });
 
   btnPlay.addEventListener('click', () => {
@@ -843,6 +910,8 @@
     const ratio = (e.clientX - rect.left) / rect.width;
     state.currentFrame = Math.floor(ratio * state.gifFrames.length);
     compositeFrame(state.currentFrame);
+    frameCounter.textContent = `${state.currentFrame + 1} / ${state.gifFrames.length}`;
+    progressBar.style.width = `${((state.currentFrame + 1) / state.gifFrames.length) * 100}%`;
   });
 
   const controlMappings = [
@@ -882,12 +951,127 @@
   }
 
   btnExport.addEventListener('click', exportGif);
+  if (btnCancelExport) btnCancelExport.addEventListener('click', closeExportModal);
+  if (btnFinishExport) btnFinishExport.addEventListener('click', closeExportModal);
   if (btnCloseExport) btnCloseExport.addEventListener('click', closeExportModal);
   if (exportModalBackdrop) exportModalBackdrop.addEventListener('click', closeExportModal);
 
+  if (ctrlBgStartFrame) {
+    ctrlBgStartFrame.addEventListener('input', () => {
+      updateBgStartFrameLimits();
+      if (!state.playing && state.gifFrames.length > 0) {
+        compositeFrame(state.currentFrame);
+      }
+    });
+  }
+
+  if (ctrlBgBeforeStart) {
+    ctrlBgBeforeStart.addEventListener('change', () => {
+      if (!state.playing && state.gifFrames.length > 0) {
+        compositeFrame(state.currentFrame);
+      }
+    });
+  }
+
+  const dropdownBeforeStart = $('#dropdown-bg-before-start');
+  const dropdownTriggerBeforeStart = $('#dropdown-trigger-before-start');
+  const dropdownMenuBeforeStart = $('#dropdown-menu-before-start');
+  const triggerIconBeforeStart = $('#trigger-icon-before-start');
+  const triggerLabelBeforeStart = $('#trigger-label-before-start');
+
+  const optionDetails = {
+    hide: {
+      label: 'Masquer',
+      icon: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
+    },
+    freeze: {
+      label: 'Figer frame 1',
+      icon: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`
+    },
+    loop: {
+      label: 'Boucler',
+      icon: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>`
+    }
+  };
+
+  function setBeforeStartOption(val) {
+    if (!optionDetails[val]) return;
+    if (ctrlBgBeforeStart && ctrlBgBeforeStart.value !== val) {
+      ctrlBgBeforeStart.value = val;
+      ctrlBgBeforeStart.dispatchEvent(new Event('change'));
+    }
+    if (triggerLabelBeforeStart) triggerLabelBeforeStart.textContent = optionDetails[val].label;
+    if (triggerIconBeforeStart) triggerIconBeforeStart.innerHTML = optionDetails[val].icon;
+
+    if (dropdownMenuBeforeStart) {
+      dropdownMenuBeforeStart.querySelectorAll('.dropdown-item').forEach((item) => {
+        const isSelected = item.dataset.value === val;
+        item.classList.toggle('selected', isSelected);
+        item.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+      });
+    }
+  }
+
+  if (dropdownTriggerBeforeStart && dropdownMenuBeforeStart) {
+    dropdownTriggerBeforeStart.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = !dropdownMenuBeforeStart.classList.contains('hidden');
+      if (isOpen) {
+        dropdownMenuBeforeStart.classList.add('hidden');
+        dropdownTriggerBeforeStart.classList.remove('open');
+        dropdownTriggerBeforeStart.setAttribute('aria-expanded', 'false');
+      } else {
+        dropdownMenuBeforeStart.classList.remove('hidden');
+        dropdownTriggerBeforeStart.classList.add('open');
+        dropdownTriggerBeforeStart.setAttribute('aria-expanded', 'true');
+      }
+    });
+
+    dropdownMenuBeforeStart.querySelectorAll('.dropdown-item').forEach((item) => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const val = item.dataset.value;
+        setBeforeStartOption(val);
+        dropdownMenuBeforeStart.classList.add('hidden');
+        dropdownTriggerBeforeStart.classList.remove('open');
+        dropdownTriggerBeforeStart.setAttribute('aria-expanded', 'false');
+      });
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!dropdownBeforeStart || !dropdownBeforeStart.contains(e.target)) {
+        if (!dropdownMenuBeforeStart.classList.contains('hidden')) {
+          dropdownMenuBeforeStart.classList.add('hidden');
+          dropdownTriggerBeforeStart.classList.remove('open');
+          dropdownTriggerBeforeStart.setAttribute('aria-expanded', 'false');
+        }
+      }
+    });
+  }
+
+  if (btnUseCurrentFrame) {
+    btnUseCurrentFrame.addEventListener('click', () => {
+      if (state.gifFrames.length > 0) {
+        ctrlBgStartFrame.value = state.currentFrame + 1;
+        updateBgStartFrameLimits();
+        if (!state.playing) {
+          compositeFrame(state.currentFrame);
+        }
+      }
+    });
+  }
+
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !exportModal.classList.contains('hidden')) {
-      closeExportModal();
+    if (e.key === 'Escape') {
+      if (dropdownMenuBeforeStart && !dropdownMenuBeforeStart.classList.contains('hidden')) {
+        dropdownMenuBeforeStart.classList.add('hidden');
+        dropdownTriggerBeforeStart.classList.remove('open');
+        dropdownTriggerBeforeStart.setAttribute('aria-expanded', 'false');
+        return;
+      }
+      if (!exportModal.classList.contains('hidden')) {
+        closeExportModal();
+      }
     }
   });
 

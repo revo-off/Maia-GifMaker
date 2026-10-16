@@ -145,6 +145,89 @@
             </label>
             <input type="range" id="ctrl-bg-speed" min="0.1" max="10" value="1" step="0.1" class="slider">
           </div>
+
+          <div class="control-group hidden" id="group-bg-start-frame">
+            <label class="control-label">
+              <span id="label-bg-start-frame">Départ GIF arrière-plan</span>
+              <span class="control-value" id="val-bg-start-frame">Frame 1</span>
+            </label>
+            <div class="slider-row">
+              <input type="range" id="ctrl-bg-start-frame" min="1" max="1" value="1" step="1" class="slider">
+              <button type="button" id="btn-use-current-frame" class="btn-micro" title="Utiliser la frame actuelle de la vidéo/GIF">
+                Actuelle
+              </button>
+            </div>
+            <div class="control-subrow">
+              <span class="subrow-label">Avant le départ :</span>
+              <div class="custom-dropdown" id="dropdown-bg-before-start">
+                <button type="button" class="dropdown-trigger" id="dropdown-trigger-before-start" aria-haspopup="listbox" aria-expanded="false" title="Comportement avant la frame de départ">
+                  <span class="trigger-icon" id="trigger-icon-before-start">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                  </span>
+                  <span class="trigger-label" id="trigger-label-before-start">Masquer</span>
+                  <svg class="dropdown-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+                <div class="dropdown-menu hidden" id="dropdown-menu-before-start" role="listbox">
+                  <div class="dropdown-item selected" data-value="hide" role="option" aria-selected="true">
+                    <div class="item-icon">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                      </svg>
+                    </div>
+                    <div class="item-content">
+                      <span class="item-title">Masquer</span>
+                      <span class="item-desc">Apparaît à la frame choisie</span>
+                    </div>
+                    <svg class="item-check" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                  <div class="dropdown-item" data-value="freeze" role="option" aria-selected="false">
+                    <div class="item-icon">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="6" y="4" width="4" height="16" />
+                        <rect x="14" y="4" width="4" height="16" />
+                      </svg>
+                    </div>
+                    <div class="item-content">
+                      <span class="item-title">Figer frame 1</span>
+                      <span class="item-desc">Reste immobile au début</span>
+                    </div>
+                    <svg class="item-check" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                  <div class="dropdown-item" data-value="loop" role="option" aria-selected="false">
+                    <div class="item-icon">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23 4 23 10 17 10" />
+                        <polyline points="1 20 1 14 7 14" />
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                      </svg>
+                    </div>
+                    <div class="item-content">
+                      <span class="item-title">Boucler</span>
+                      <span class="item-desc">Animation en continu</span>
+                    </div>
+                    <svg class="item-check" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                </div>
+                <select id="ctrl-bg-before-start" class="hidden">
+                  <option value="hide" selected>Masquer</option>
+                  <option value="freeze">Figer sur frame 1</option>
+                  <option value="loop">Boucler en continu</option>
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
