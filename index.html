@@ -1,0 +1,245 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gifmakerbey</title>
+  <link rel="icon" type="image/png" href="misc/icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="ambient-scene" aria-hidden="true">
+    <div class="aura-orb orb-primary"><div class="orb-core"></div><div class="orb-lime-rim"></div><div class="orb-star star-1">&#x2726;</div><div class="orb-star star-2">&#x2726;</div></div>
+    <div class="aura-orb orb-secondary"></div><div class="aura-orb orb-tertiary"></div>
+    <div class="liquid-blob blob-1"></div><div class="liquid-blob blob-2"></div><div class="liquid-blob blob-3"></div>
+    <div class="liquid-blob blob-4"></div><div class="liquid-blob blob-5"></div><div class="liquid-blob blob-6"></div>
+    <div class="sparkle sp-1">&#x2726;</div><div class="sparkle sp-2">+</div><div class="sparkle sp-3">&#x2726;</div><div class="sparkle sp-4">+</div>
+  </div>
+  <main id="app-main">
+    <aside id="panel-left">
+      <section class="panel-section" id="section-gif">
+        <h2 class="section-title"><span class="step-badge">1</span>Choisir un GIF</h2>
+        <div class="gif-gallery" id="gif-gallery"><div class="gallery-loading"><div class="spinner-small"></div><span>Chargement...</span></div></div>
+        <div class="option-row hidden" id="row-transparent">
+          <label class="custom-checkbox-wrap" for="chk-transparent">
+            <input type="checkbox" id="chk-transparent" class="custom-checkbox">
+            <span class="checkbox-box"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <span class="checkbox-text">Fond transparent</span>
+          </label>
+        </div>
+      </section>
+      <section class="panel-section" id="section-bg">
+        <h2 class="section-title"><span class="step-badge">2</span>Arri&#x00e8;re-plan</h2>
+        <div class="upload-zone" id="upload-bg" tabindex="0" role="button" aria-label="Importer">
+          <input type="file" id="input-bg" accept="image/*,video/*,.gif" hidden>
+          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <p class="upload-label">Image, Vid&#x00e9;o ou GIF</p>
+          <p class="upload-hint">Incrustation &amp; suivi automatiques</p>
+        </div>
+        <div class="file-info hidden" id="bg-info">
+          <span class="file-name" id="bg-filename"></span>
+          <button class="btn-remove" id="btn-remove-bg" title="Supprimer"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+        <button id="btn-adjust-pos" class="btn-adjust-pos hidden">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg>
+          <span>Ajuster la position</span>
+        </button>
+      </section>
+      <section class="panel-section" id="section-controls">
+        <h2 class="section-title"><span class="step-badge">3</span>Ajustements</h2>
+        <div class="controls-grid">
+          <div class="control-group">
+            <label class="control-label"><span>Tol&#x00e9;rance Chroma</span><span class="control-value" id="val-tolerance">100</span></label>
+            <input type="range" id="ctrl-tolerance" min="10" max="200" value="100" class="slider">
+          </div>
+          <div class="control-group">
+            <label class="control-label"><span>Couleur cl&#x00e9;</span><div class="color-picker-wrap"><input type="color" id="ctrl-chromacolor" value="#00ff00" class="color-input"><span class="control-value" id="val-chromacolor">#00ff00</span></div></label>
+          </div>
+          <div class="control-divider"></div>
+          <div class="tracking-badge"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M3 12h3M18 12h3M12 3v3M12 18v3"/></svg><span>Suivi &amp; &#x00e9;chelle automatiques</span></div>
+          <div class="control-divider"></div>
+          <div class="control-group" id="group-speed">
+            <label class="control-label"><span>Vitesse GIF principal</span><span class="control-value" id="val-speed">1.0x</span></label>
+            <input type="range" id="ctrl-speed" min="0.1" max="10" value="1" step="0.1" class="slider">
+          </div>
+          <div class="control-group hidden" id="group-bg-speed">
+            <label class="control-label"><span id="label-bg-speed">Vitesse arri&#x00e8;re-plan</span><span class="control-value" id="val-bg-speed">1.0x</span></label>
+            <input type="range" id="ctrl-bg-speed" min="0.1" max="10" value="1" step="0.1" class="slider">
+          </div>
+          <div class="control-group hidden" id="group-bg-start-frame">
+            <label class="control-label"><span id="label-bg-start-frame">D&#x00e9;part GIF arri&#x00e8;re-plan</span><span class="control-value" id="val-bg-start-frame">Frame 1</span></label>
+            <div class="slider-row">
+              <input type="range" id="ctrl-bg-start-frame" min="1" max="1" value="1" step="1" class="slider">
+              <button type="button" id="btn-use-current-frame" class="btn-micro">Actuelle</button>
+            </div>
+            <div class="control-subrow">
+              <span class="subrow-label">Avant le d&#x00e9;part :</span>
+              <div class="custom-dropdown" id="dropdown-bg-before-start">
+                <button type="button" class="dropdown-trigger" id="dropdown-trigger-before-start" aria-haspopup="listbox" aria-expanded="false">
+                  <span class="trigger-icon" id="trigger-icon-before-start"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
+                  <span class="trigger-label" id="trigger-label-before-start">Masquer</span>
+                  <svg class="dropdown-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="dropdown-menu hidden" id="dropdown-menu-before-start" role="listbox">
+                  <div class="dropdown-item selected" data-value="hide" role="option" aria-selected="true">
+                    <div class="item-icon"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></div>
+                    <div class="item-content"><span class="item-title">Masquer</span><span class="item-desc">Appara&#x00ee;t &#x00e0; la frame choisie</span></div>
+                    <svg class="item-check" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="dropdown-item" data-value="freeze" role="option" aria-selected="false">
+                    <div class="item-icon"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></div>
+                    <div class="item-content"><span class="item-title">Figer frame 1</span><span class="item-desc">Reste immobile au d&#x00e9;but</span></div>
+                    <svg class="item-check" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="dropdown-item" data-value="loop" role="option" aria-selected="false">
+                    <div class="item-icon"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></div>
+                    <div class="item-content"><span class="item-title">Boucler</span><span class="item-desc">Animation en continu</span></div>
+                    <svg class="item-check" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                </div>
+                <select id="ctrl-bg-before-start" class="hidden"><option value="hide" selected>Masquer</option><option value="freeze">Figer sur frame 1</option><option value="loop">Boucler en continu</option></select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="panel-section hidden" id="section-frames">
+        <h2 class="section-title"><span class="step-badge">4</span>Frames du GIF</h2>
+        <div class="frames-toolbar">
+          <span class="frames-count" id="frames-count">0 frames</span>
+          <div class="frames-bulk-wrap">
+            <label class="frames-bulk-label" for="bulk-delay-input">Tout :</label>
+            <input type="number" id="bulk-delay-input" class="frame-delay-input bulk" min="1" max="9999" placeholder="ms">
+            <button id="btn-bulk-apply" class="btn-micro">OK</button>
+          </div>
+        </div>
+        <div class="frames-strip" id="frames-strip"></div>
+      </section>
+      <div class="panel-bottom">
+        <button id="btn-render" class="btn-render hidden">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span>G&#x00e9;n&#x00e9;rer le rendu</span>
+        </button>
+        <div class="footer-credit">par <span class="credit-author">revo.</span></div>
+      </div>
+    </aside>
+    <div id="canvas-area">
+      <div id="canvas-container">
+        <div id="empty-state">
+          <svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="currentColor" stroke-width="1"><rect x="2" y="2" width="20" height="20" rx="4"/><path d="M8 8h2v2H8zM14 8h2v2h-2zM8 14h2v2H8zM14 14h2v2h-2z" fill="currentColor" stroke="none" opacity="0.3"/><circle cx="12" cy="12" r="3" stroke-dasharray="2 2"/></svg>
+          <h3>S&#x00e9;lectionnez un GIF</h3>
+          <p>Choisissez un GIF fond vert dans le panneau de gauche pour commencer</p>
+        </div>
+        <canvas id="preview-canvas"></canvas>
+      </div>
+      <div id="playback-bar" class="hidden">
+        <button id="btn-play" class="playback-btn">
+          <svg id="icon-play" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <svg id="icon-pause" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" class="hidden"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        </button>
+        <div class="frame-info"><span id="frame-counter">0 / 0</span></div>
+        <div class="progress-bar-container"><div class="progress-bar" id="progress-bar"></div></div>
+      </div>
+      <div id="export-area" class="hidden">
+        <button id="btn-export" class="btn-export">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>Exporter en GIF</span>
+        </button>
+      </div>
+    </div>
+  </main>
+  <!-- POSITION EDITOR MODAL -->
+  <div id="pos-editor-modal" class="pe-modal hidden">
+    <div class="pe-wrap">
+      <div class="pe-topbar">
+        <div class="pe-title-group">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg>
+          <h2>&#x00c9;diteur position &mdash; <span id="pe-frame-label">Frame 1 / 1</span></h2>
+        </div>
+        <div class="pe-topbar-actions">
+          <button id="pe-btn-apply-all" class="btn-pe-secondary"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Appliquer &#x00e0; toutes</button>
+          <button id="pe-btn-reset" class="btn-pe-ghost"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>R&#x00e9;initialiser</button>
+          <button id="pe-btn-close" class="btn-pe-close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+      </div>
+      <div class="pe-body">
+        <div class="pe-canvas-area" id="pe-canvas-area">
+          <canvas id="pe-canvas"></canvas>
+          <div id="pe-overlay">
+            <div id="pe-box">
+              <div class="pe-border"></div>
+              <div class="pe-handle pe-nw" data-h="nw"></div><div class="pe-handle pe-ne" data-h="ne"></div>
+              <div class="pe-handle pe-sw" data-h="sw"></div><div class="pe-handle pe-se" data-h="se"></div>
+              <div class="pe-handle pe-n" data-h="n"></div><div class="pe-handle pe-s" data-h="s"></div>
+              <div class="pe-handle pe-w" data-h="w"></div><div class="pe-handle pe-e" data-h="e"></div>
+              <div class="pe-rotate-arm">
+                <div class="pe-rotate-handle" id="pe-rotate-handle"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="pe-controls">
+          <h3 class="pe-ctrl-title">Transformation</h3>
+          <div class="pe-ctrl-group"><label class="pe-ctrl-label">Position X</label><input type="number" id="pe-x" class="pe-num-input" step="1"></div>
+          <div class="pe-ctrl-group"><label class="pe-ctrl-label">Position Y</label><input type="number" id="pe-y" class="pe-num-input" step="1"></div>
+          <div class="pe-ctrl-group"><label class="pe-ctrl-label">Largeur</label><input type="number" id="pe-w" class="pe-num-input" step="1" min="1"></div>
+          <div class="pe-ctrl-group"><label class="pe-ctrl-label">Hauteur</label><input type="number" id="pe-h" class="pe-num-input" step="1" min="1"></div>
+          <div class="pe-ctrl-group"><label class="pe-ctrl-label">Rotation (deg)</label><input type="number" id="pe-rot" class="pe-num-input" step="0.5" min="-360" max="360"></div>
+          <div class="pe-ctrl-divider"></div>
+          <div class="pe-ctrl-group">
+            <label class="pe-ctrl-label">Proportions</label>
+            <label class="custom-checkbox-wrap" for="pe-lock-ratio"><input type="checkbox" id="pe-lock-ratio" class="custom-checkbox" checked><span class="checkbox-box"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span class="checkbox-text">Verrouiller</span></label>
+          </div>
+          <div class="pe-ctrl-divider"></div>
+          <button id="pe-btn-apply-frame" class="btn-pe-primary"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Valider cette frame</button>
+        </div>
+      </div>
+      <div class="pe-strip-bar">
+        <button class="pe-strip-nav" id="pe-strip-prev"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="pe-strip" id="pe-strip"></div>
+        <button class="pe-strip-nav" id="pe-strip-next"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
+      </div>
+      <div class="pe-footer">
+        <span class="pe-status" id="pe-status">Aucune transformation manuelle</span>
+        <div class="pe-footer-actions">
+          <button id="pe-btn-cancel" class="btn-pe-ghost">Annuler</button>
+          <button id="pe-btn-done" class="btn-pe-accent"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="5 3 19 12 5 21 5 3"/></svg>Appliquer &amp; G&#x00e9;n&#x00e9;rer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- LOADING MODAL -->
+  <div id="loading-modal" class="modal hidden" role="status" aria-live="polite">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-icon"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+      <h3 id="loading-title">Chargement en cours...</h3>
+      <p id="loading-subtitle">Traitement du GIF</p>
+    </div>
+  </div>
+  <!-- EXPORT MODAL -->
+  <div id="export-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <button id="btn-close-export" class="modal-close" aria-label="Fermer">&times;</button>
+      <div class="modal-icon"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+      <h3 id="modal-title">Exportation en cours...</h3>
+      <p id="modal-subtitle">Pr&#x00e9;paration des frames</p>
+      <div class="export-progress-track"><div class="export-progress-fill" id="export-progress"></div></div>
+      <span class="export-percent" id="export-percent">0%</span>
+      <div id="modal-actions-done" class="modal-actions hidden">
+        <a id="btn-download" class="btn-download" download="maia-gifmaker-export.gif">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>T&#x00e9;l&#x00e9;charger le GIF</span>
+        </a>
+      </div>
+    </div>
+  </div>
+  <script src="lib/gifuct-js.min.js"></script>
+  <script src="lib/gif.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
