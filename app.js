@@ -26,9 +26,12 @@
     trackingData: [],
     gsTrackingData: null,
     keyedFrames: [],
-    // Transform overlay state
-    overlayTransform: { x: 0, y: 0, w: 0, h: 0, rotation: 0, scaleX: 1, scaleY: 1 },
-    useOverlayTransform: false,
+    // Per-frame data (parallel to gifFrames)
+    // frameTransforms[i]: null (auto tracking) or { cx, cy, w, h, rot } = placement of the overlay image
+    frameTransforms: [],
+    frameDisabled: [],
+    frameSrc: [],
+    srcCount: 0,
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -62,8 +65,8 @@
   const frameCounter = $('#frame-counter');
   const progressBar = $('#progress-bar');
 
-  const exportArea = $('#export-area');
-  const btnExport = $('#btn-export');
+  const btnRender = $('#btn-render');
+  const btnAdjustPos = $('#btn-adjust-pos');
   const exportModal = $('#export-modal');
   const exportProgress = $('#export-progress');
   const exportPercent = $('#export-percent');
@@ -129,20 +132,26 @@
     const gif = gifuct.parseGIF(arrayBuffer);
     const rawFrames = gifuct.decompressFrames(gif, true);
 
-    const width = rawFrames[0].dims.width || gif.lsd.width;
-    const height = rawFrames[0].dims.height || gif.lsd.height;
+    const width = gif.lsd.width || rawFrames[0].dims.width;
+    const height = gif.lsd.height || rawFrames[0].dims.height;
 
     const fullCanvas = document.createElement('canvas');
     fullCanvas.width = width;
     fullCanvas.height = height;
-    const fullCtx = fullCanvas.getContext('2d');
+    const fullCtx = fullCanvas.getContext('2d', { willReadFrequently: true });
 
     const frames = [];
     const delays = [];
+    let restoreSnapshot = null;
 
     for (let i = 0; i < rawFrames.length; i++) {
       const frame = rawFrames[i];
       const dims = frame.dims;
+
+      if (i > 0 && rawFrames[i - 1].disposalType === 3 && restoreSnapshot) {
+        fullCtx.putImageData(restoreSnapshot, 0, 0);
+      }
+      restoreSnapshot = frame.disposalType === 3 ? fullCtx.getImageData(0, 0, width, height) : null;
 
       const patchCanvas = document.createElement('canvas');
       patchCanvas.width = dims.width;
@@ -184,6 +193,10 @@
       state.gifWidth = width;
       state.gifHeight = height;
       state.currentFrame = 0;
+      state.frameTransforms = frames.map(() => null);
+      state.frameDisabled = frames.map(() => false);
+      state.frameSrc = frames.map((_, k) => k);
+      state.srcCount = frames.length;
       await updateTracking();
 
       canvas.width = width;
@@ -196,7 +209,8 @@
       emptyState.classList.add('hidden');
       canvas.classList.add('active');
       playbackBar.classList.remove('hidden');
-      exportArea.classList.remove('hidden');
+      btnRender.classList.remove('hidden');
+      updateAdjustButton();
 
       frameCounter.textContent = `1 / ${frames.length}`;
       updateBgStartFrameLimits();
@@ -207,15 +221,7 @@
       // Show frame strip section
       const sectionFramesEl = document.querySelector('#section-frames');
       if (sectionFramesEl) sectionFramesEl.classList.remove('hidden');
-      // Reset overlay on new GIF
-      state.useOverlayTransform = false;
-      const overlayEl = document.querySelector('#transform-overlay');
-      if (overlayEl) {
-        overlayEl.classList.add('hidden');
-        overlayEl.classList.remove('active');
-      }
-      // renderFrameStrip is defined later in the IIFE — call via setTimeout
-      setTimeout(() => { if (typeof renderFrameStrip === 'function') renderFrameStrip(); }, 0);
+      renderFrameStrip();
 
       state.playing = true;
       updatePlayButton();
@@ -362,8 +368,8 @@
         video.onloadeddata = resolve;
         video.load();
       });
-      video.playbackRate = parseFloat(ctrlBgSpeed.value) || 1.0;
-      video.play();
+      // The video is driven frame by frame (currentTime), never free-running
+      video.pause();
       state.bgImage = video;
       state.bgGifFrames = [];
       groupBgSpeed.classList.remove('hidden');
@@ -387,9 +393,16 @@
     bgInfo.classList.remove('hidden');
     uploadBg.classList.add('hidden');
     bgFilename.textContent = file.name;
+    state.frameTransforms = state.frameTransforms.map(() => null);
+    updateAdjustButton();
     if (!state.playing && state.gifFrames.length > 0) {
       compositeFrame(state.currentFrame);
     }
+  }
+
+  function updateAdjustButton() {
+    const ready = Boolean(state.bgType) && state.gifFrames.length > 0;
+    btnAdjustPos.classList.toggle('hidden', !ready);
   }
 
   function computeTrackingData(frames, chromaColor, tolerance) {
@@ -528,11 +541,11 @@
     return smoothed;
   }
 
-  function mapGsTrackingToFrames(gsTrack, targetCount) {
+  function mapGsTrackingToFrames(gsTrack, frameSrc, srcCount) {
     if (!gsTrack || gsTrack.length === 0) return [];
     const res = [];
-    for (let i = 0; i < targetCount; i++) {
-      const ratio = targetCount > 1 ? i / (targetCount - 1) : 0;
+    for (let i = 0; i < frameSrc.length; i++) {
+      const ratio = srcCount > 1 ? frameSrc[i] / (srcCount - 1) : 0;
       const gsIndex = Math.min(gsTrack.length - 1, Math.max(0, Math.round(ratio * (gsTrack.length - 1))));
       const item = gsTrack[gsIndex];
       res.push(item ? { ...item } : null);
@@ -540,9 +553,10 @@
     return res;
   }
 
-  async function updateTracking() {
+  async function updateTracking(force = false) {
     if (state.gifFrames.length === 0) return;
     state.keyedFrames = [];
+    if (force) state.gsTrackingData = null;
     const tolerance = parseFloat(ctrlTolerance.value);
     const chromaColor = hexToRgb(ctrlChromaColor.value);
 
@@ -563,134 +577,156 @@
           }
         }
       }
-      state.trackingData = mapGsTrackingToFrames(state.gsTrackingData, state.gifFrames.length);
+      state.trackingData = mapGsTrackingToFrames(state.gsTrackingData, state.frameSrc, state.srcCount);
     } else {
-      state.gsTrackingData = computeTrackingData(state.gifFrames, chromaColor, tolerance);
-      state.trackingData = state.gsTrackingData;
+      const tracked = computeTrackingData(state.gifFrames, chromaColor, tolerance);
+      // Only an unedited frame list can serve as reference for the transparent variant
+      const unedited = state.frameSrc.length === state.srcCount && state.frameSrc.every((s, k) => s === k);
+      state.gsTrackingData = unedited ? tracked : null;
+      state.trackingData = tracked.slice();
     }
   }
 
-  function drawBackground(targetCtx, w, h, frameIndex, isExport, exportTimeMs) {
-    if (!state.bgType) return;
-
-    let bgSource = null;
-    let bgW = w;
-    let bgH = h;
-    const bgSpeed = parseFloat(ctrlBgSpeed.value) || 1.0;
-    const mainSpeed = parseFloat(ctrlSpeed.value) || 1.0;
+  // Position of the background in its own timeline (-1 = hidden at this frame)
+  function bgTimeline(frameIndex) {
     const startFrame = parseInt(ctrlBgStartFrame ? ctrlBgStartFrame.value : '1', 10) || 1;
     const startIndex = Math.max(0, startFrame - 1);
     const beforeStart = ctrlBgBeforeStart ? ctrlBgBeforeStart.value : 'hide';
-    const totalMainFrames = state.gifFrames.length || 1;
+    const total = state.gifFrames.length || 1;
+
+    if (frameIndex >= startIndex) return frameIndex - startIndex;
+    if (beforeStart === 'hide') return -1;
+    if (beforeStart === 'freeze') return 0;
+    return (frameIndex - startIndex + total) % total;
+  }
+
+  function bgVideoTime(relFrame) {
+    const video = state.bgImage;
+    const bgSpeed = parseFloat(ctrlBgSpeed.value) || 1.0;
+    const mainSpeed = parseFloat(ctrlSpeed.value) || 1.0;
+    const secPerMainFrame = (1 / 24) / mainSpeed;
+    return ((relFrame * secPerMainFrame) * bgSpeed) % video.duration;
+  }
+
+  // Seek the background video and wait until the frame is really decoded (export / editor)
+  async function seekBgVideo(frameIndex) {
+    if (state.bgType !== 'video' || !state.bgImage || !state.bgImage.duration) return;
+    const rel = bgTimeline(frameIndex);
+    if (rel < 0) return;
+    const video = state.bgImage;
+    const t = bgVideoTime(rel);
+    if (!video.seeking && Math.abs(video.currentTime - t) < 0.001) return;
+    await new Promise((resolve) => {
+      const done = () => {
+        video.removeEventListener('seeked', done);
+        clearTimeout(timer);
+        resolve();
+      };
+      const timer = setTimeout(done, 1500);
+      video.addEventListener('seeked', done);
+      video.currentTime = t;
+    });
+  }
+
+  function resolveBackground(frameIndex, isExport) {
+    if (!state.bgType) return null;
+    const rel = bgTimeline(frameIndex);
+    if (rel < 0) return null;
 
     if (state.bgType === 'image' && state.bgImage) {
-      if (frameIndex < startIndex && beforeStart === 'hide') {
-        return;
-      }
-      bgSource = state.bgImage;
-      bgW = state.bgImage.naturalWidth || state.bgImage.width;
-      bgH = state.bgImage.naturalHeight || state.bgImage.height;
-    } else if (state.bgType === 'video' && state.bgImage) {
-      if (frameIndex < startIndex && beforeStart === 'hide') {
-        return;
-      }
-      let relFrame = 0;
-      if (frameIndex < startIndex) {
-        if (beforeStart === 'freeze') {
-          relFrame = 0;
-        } else if (beforeStart === 'loop') {
-          relFrame = (frameIndex - startIndex + totalMainFrames) % totalMainFrames;
-        }
-      } else {
-        relFrame = frameIndex - startIndex;
-      }
-
-      if (state.bgImage.duration) {
-        const secPerMainFrame = (1 / 24) / mainSpeed;
-        const videoTime = (relFrame * secPerMainFrame) * bgSpeed;
-        state.bgImage.currentTime = videoTime % state.bgImage.duration;
-      }
-      bgSource = state.bgImage;
-      bgW = state.bgImage.videoWidth;
-      bgH = state.bgImage.videoHeight;
-    } else if (state.bgType === 'gif' && state.bgGifFrames.length > 0) {
-      if (frameIndex < startIndex && beforeStart === 'hide') {
-        return;
-      }
-
-      let bgFrameIdx = 0;
-      if (frameIndex < startIndex) {
-        if (beforeStart === 'freeze') {
-          bgFrameIdx = 0;
-        } else if (beforeStart === 'loop') {
-          const relFrame = (frameIndex - startIndex + totalMainFrames) % totalMainFrames;
-          const bgFramesElapsed = relFrame * (bgSpeed / mainSpeed);
-          bgFrameIdx = Math.floor(bgFramesElapsed) % state.bgGifFrames.length;
-        }
-      } else {
-        const relFrame = frameIndex - startIndex;
-        const bgFramesElapsed = relFrame * (bgSpeed / mainSpeed);
-        bgFrameIdx = Math.floor(bgFramesElapsed) % state.bgGifFrames.length;
-      }
-
-      bgCanvas.width = state.bgGifWidth;
-      bgCanvas.height = state.bgGifHeight;
-      bgCtx.putImageData(state.bgGifFrames[bgFrameIdx], 0, 0);
-      bgSource = bgCanvas;
-      bgW = state.bgGifWidth;
-      bgH = state.bgGifHeight;
+      return {
+        source: state.bgImage,
+        bgW: state.bgImage.naturalWidth || state.bgImage.width,
+        bgH: state.bgImage.naturalHeight || state.bgImage.height,
+      };
     }
 
-    if (!bgSource || bgW === 0 || bgH === 0) return;
-
-    // If user has manually placed overlay, use that transform instead of tracking
-    if (state.useOverlayTransform) {
-      const ot = state.overlayTransform;
-      targetCtx.save();
-      targetCtx.translate(ot.x + ot.w / 2, ot.y + ot.h / 2);
-      if (ot.rotation) targetCtx.rotate(ot.rotation);
-      targetCtx.scale(ot.scaleX, ot.scaleY);
-      targetCtx.drawImage(bgSource, -ot.w / 2, -ot.h / 2, ot.w, ot.h);
-      targetCtx.restore();
-      return;
+    if (state.bgType === 'video' && state.bgImage) {
+      if (!isExport && state.bgImage.duration) {
+        state.bgImage.currentTime = bgVideoTime(rel);
+      }
+      return { source: state.bgImage, bgW: state.bgImage.videoWidth, bgH: state.bgImage.videoHeight };
     }
 
+    if (state.bgType === 'gif' && state.bgGifFrames.length > 0) {
+      const bgSpeed = parseFloat(ctrlBgSpeed.value) || 1.0;
+      const mainSpeed = parseFloat(ctrlSpeed.value) || 1.0;
+      const idx = Math.floor(rel * (bgSpeed / mainSpeed)) % state.bgGifFrames.length;
+      if (bgCanvas.width !== state.bgGifWidth || bgCanvas.height !== state.bgGifHeight) {
+        bgCanvas.width = state.bgGifWidth;
+        bgCanvas.height = state.bgGifHeight;
+      }
+      bgCtx.putImageData(state.bgGifFrames[idx], 0, 0);
+      return { source: bgCanvas, bgW: state.bgGifWidth, bgH: state.bgGifHeight };
+    }
+
+    return null;
+  }
+
+  // Placement of the overlay image as computed by the automatic tracking
+  function autoPlacement(frameIndex, w, h, bgW, bgH) {
     const bbox = state.trackingData && state.trackingData[frameIndex];
-    if (!bbox) return;
+    if (!bbox) return null;
 
     const isFull = Boolean(bbox.isFullScreen || (bbox.w >= w * 0.95 && bbox.h >= h * 0.85) || (bbox.pct && bbox.pct >= 0.60));
     const cardW = isFull ? w : bbox.w;
     const cardH = isFull ? h : bbox.h;
-    const cx = isFull ? (w / 2) : bbox.cx;
-    const cy = isFull ? (h / 2) : bbox.cy;
     const angle = isFull ? 0 : (bbox.angle || 0);
 
-    targetCtx.save();
-    targetCtx.translate(cx, cy);
-    if (angle) {
-      targetCtx.rotate(angle);
+    const cos = Math.abs(Math.cos(angle));
+    const sin = Math.abs(Math.sin(angle));
+    const coverScale = Math.max((cardW * cos + cardH * sin) / bgW, (cardW * sin + cardH * cos) / bgH);
+
+    return {
+      cx: isFull ? w / 2 : bbox.cx,
+      cy: isFull ? h / 2 : bbox.cy,
+      rot: angle,
+      w: bgW * coverScale,
+      h: bgH * coverScale,
+      cardW,
+      cardH,
+      isFull,
+    };
+  }
+
+  // ftOverride: undefined = use the stored transform, null = force tracking, object = explicit transform
+  function drawBackground(targetCtx, w, h, frameIndex, isExport, ftOverride) {
+    const info = resolveBackground(frameIndex, isExport);
+    if (!info || !info.bgW || !info.bgH) return;
+
+    const { source: bgSource, bgW, bgH } = info;
+    const ft = ftOverride !== undefined ? ftOverride : state.frameTransforms[frameIndex];
+
+    if (ft) {
+      targetCtx.save();
+      // Manual placement is unclipped: with a transparent GIF the image goes behind it
+      if (state.transparentBackground) targetCtx.globalCompositeOperation = 'destination-over';
+      targetCtx.translate(ft.cx, ft.cy);
+      if (ft.rot) targetCtx.rotate(ft.rot);
+      targetCtx.drawImage(bgSource, -ft.w / 2, -ft.h / 2, ft.w, ft.h);
+      targetCtx.restore();
+      return;
     }
 
-    if (!isFull) {
+    const p = autoPlacement(frameIndex, w, h, bgW, bgH);
+    if (!p) return;
+
+    targetCtx.save();
+    targetCtx.translate(p.cx, p.cy);
+    if (p.rot) targetCtx.rotate(p.rot);
+
+    if (!p.isFull) {
       targetCtx.beginPath();
-      const cornerRadius = (cardW >= w * 0.75 || cardH >= h * 0.75) ? 0 : 3;
+      const cornerRadius = (p.cardW >= w * 0.75 || p.cardH >= h * 0.75) ? 0 : 3;
       if (typeof targetCtx.roundRect === 'function' && cornerRadius > 0) {
-        targetCtx.roundRect(-cardW / 2, -cardH / 2, cardW, cardH, cornerRadius);
+        targetCtx.roundRect(-p.cardW / 2, -p.cardH / 2, p.cardW, p.cardH, cornerRadius);
       } else {
-        targetCtx.rect(-cardW / 2, -cardH / 2, cardW, cardH);
+        targetCtx.rect(-p.cardW / 2, -p.cardH / 2, p.cardW, p.cardH);
       }
       targetCtx.clip();
     }
 
-    const cos = Math.abs(Math.cos(angle));
-    const sin = Math.abs(Math.sin(angle));
-    const targetW = cardW * cos + cardH * sin;
-    const targetH = cardW * sin + cardH * cos;
-    const coverScale = Math.max(targetW / bgW, targetH / bgH);
-    const drawW = bgW * coverScale;
-    const drawH = bgH * coverScale;
-
-    targetCtx.drawImage(bgSource, -drawW / 2, -drawH / 2, drawW, drawH);
+    targetCtx.drawImage(bgSource, -p.w / 2, -p.h / 2, p.w, p.h);
     targetCtx.restore();
   }
 
@@ -736,26 +772,30 @@
     return kCanvas;
   }
 
-  function compositeFrame(frameIndex) {
-    if (state.gifFrames.length === 0) return;
-
-    const frame = state.gifFrames[frameIndex];
+  // Draws frame `frameIndex` (background + keyed GIF) on targetCtx at the GIF's native size
+  function paintFrame(targetCtx, scratch, frameIndex, isExport, ftOverride) {
     const w = state.gifWidth;
     const h = state.gifHeight;
 
-    ctx.clearRect(0, 0, w, h);
+    targetCtx.imageSmoothingEnabled = true;
+    targetCtx.imageSmoothingQuality = 'high';
+    targetCtx.clearRect(0, 0, w, h);
 
     if (state.transparentBackground) {
-      tempCtx.clearRect(0, 0, w, h);
-      tempCtx.putImageData(frame, 0, 0);
-      ctx.drawImage(tempCanvas, 0, 0);
-
-      drawBackground(ctx, w, h, frameIndex);
+      const scratchCtx = scratch.getContext('2d', { willReadFrequently: true });
+      scratchCtx.clearRect(0, 0, w, h);
+      scratchCtx.putImageData(state.gifFrames[frameIndex], 0, 0);
+      targetCtx.drawImage(scratch, 0, 0);
+      drawBackground(targetCtx, w, h, frameIndex, isExport, ftOverride);
     } else {
-      drawBackground(ctx, w, h, frameIndex);
-      const keyed = getKeyedFrameCanvas(frameIndex);
-      ctx.drawImage(keyed, 0, 0);
+      drawBackground(targetCtx, w, h, frameIndex, isExport, ftOverride);
+      targetCtx.drawImage(getKeyedFrameCanvas(frameIndex), 0, 0);
     }
+  }
+
+  function compositeFrame(frameIndex) {
+    if (state.gifFrames.length === 0) return;
+    paintFrame(ctx, tempCanvas, frameIndex, false);
   }
 
   function startAnimation() {
@@ -772,6 +812,15 @@
     }
   }
 
+  function nextActiveFrame(from) {
+    const n = state.gifFrames.length;
+    for (let k = 1; k <= n; k++) {
+      const idx = (from + k) % n;
+      if (!state.frameDisabled[idx]) return idx;
+    }
+    return from;
+  }
+
   function animate() {
     if (!state.playing || state.gifFrames.length === 0) {
       compositeFrame(state.currentFrame);
@@ -780,12 +829,11 @@
 
     const now = performance.now();
     const speed = parseFloat(ctrlSpeed.value) || 1.0;
-    // Use per-frame delay from gifDelays, falling back to 100ms
     const currentDelay = (state.gifDelays[state.currentFrame] || 100) / speed;
 
     let frameChanged = false;
     if (now - state.lastFrameTime >= currentDelay) {
-      state.currentFrame = (state.currentFrame + 1) % state.gifFrames.length;
+      state.currentFrame = nextActiveFrame(state.currentFrame);
       state.lastFrameTime = now;
       frameChanged = true;
     }
@@ -811,40 +859,49 @@
     }
   }
 
+  const EXPORT_TRANSPARENT_KEY = 0xFE01FD;
+
+  function setExportIcon(done) {
+    if (!exportModalIcon) return;
+    exportModalIcon.classList.toggle('done', done);
+    exportModalIcon.innerHTML = done
+      ? `<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="8 12 11 15 16 9" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>`
+      : `<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 6v6l4 2" />
+        </svg>`;
+  }
+
+  function setExportProgress(pct) {
+    const p = Math.max(0, Math.min(100, Math.round(pct)));
+    exportProgress.style.width = p + '%';
+    exportPercent.textContent = p + '%';
+  }
+
   async function exportGif() {
-    if (state.gifFrames.length === 0) return;
+    const indices = [];
+    for (let i = 0; i < state.gifFrames.length; i++) {
+      if (!state.frameDisabled[i]) indices.push(i);
+    }
+    if (indices.length === 0) {
+      alert('Toutes les frames sont désactivées : rien à générer.');
+      return;
+    }
 
     state.exportCancelled = false;
     exportModal.classList.remove('hidden');
     if (modalActionsDone) modalActionsDone.classList.add('hidden');
-    modalTitle.textContent = 'Exportation en cours...';
+    modalTitle.textContent = 'Génération du rendu...';
     modalSubtitle.textContent = 'Préparation des frames';
-    exportProgress.style.width = '0%';
-    exportPercent.textContent = '0%';
-
-    if (exportModalIcon) {
-      exportModalIcon.classList.remove('done');
-      exportModalIcon.innerHTML = `
-        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 6v6l4 2" />
-        </svg>
-      `;
-    }
+    setExportProgress(0);
+    setExportIcon(false);
 
     const w = state.gifWidth;
     const h = state.gifHeight;
     const speed = parseFloat(ctrlSpeed.value) || 1.0;
-    const numWorkers = Math.min(4, Math.max(2, navigator.hardwareConcurrency || 2));
-
-    const gif = new GIF({
-      workers: numWorkers,
-      quality: 2,
-      dither: 'FloydSteinberg-serpentine',
-      width: w,
-      height: h,
-      workerScript: 'lib/gif.worker.js',
-    });
 
     const renderCanvas = document.createElement('canvas');
     renderCanvas.width = w;
@@ -853,47 +910,93 @@
     const renderTemp = document.createElement('canvas');
     renderTemp.width = w;
     renderTemp.height = h;
-    const renderTempCtx = renderTemp.getContext('2d', { willReadFrequently: true });
 
-    let currentExportTimeMs = 0;
-    for (let i = 0; i < state.gifFrames.length; i++) {
-      if (state.exportCancelled) {
-        gif.abort();
-        exportModal.classList.add('hidden');
-        return;
+    // The preview must not fight with the export over the background video
+    const wasPlaying = state.playing;
+    if (wasPlaying) {
+      state.playing = false;
+      updatePlayButton();
+    }
+
+    // Phase 1: render every active frame at full quality
+    const rendered = [];
+    const delays = [];
+    let hasAlpha = false;
+    let carry = 0;
+
+    for (let n = 0; n < indices.length; n++) {
+      if (state.exportCancelled) break;
+      const i = indices[n];
+
+      modalSubtitle.textContent = `Rendu de la frame ${n + 1} / ${indices.length}`;
+      setExportProgress(((n + 1) / indices.length) * 50);
+
+      await seekBgVideo(i);
+      paintFrame(renderCtx, renderTemp, i, true);
+      const imageData = renderCtx.getImageData(0, 0, w, h);
+
+      if (!hasAlpha) {
+        const d = imageData.data;
+        for (let p = 3; p < d.length; p += 4) {
+          if (d[p] < 128) { hasAlpha = true; break; }
+        }
       }
+      rendered.push(imageData);
 
-      const pct = Math.round(((i + 1) / state.gifFrames.length) * 100);
-      modalSubtitle.textContent = `Frame ${i + 1} / ${state.gifFrames.length}`;
-      exportProgress.style.width = pct + '%';
-      exportPercent.textContent = pct + '%';
-
-      const frame = state.gifFrames[i];
-      const tolerance = parseFloat(ctrlTolerance.value);
-      const chromaColor = hexToRgb(ctrlChromaColor.value);
-
-      renderCtx.clearRect(0, 0, w, h);
-
-      if (state.transparentBackground) {
-        renderTempCtx.clearRect(0, 0, w, h);
-        renderTempCtx.putImageData(frame, 0, 0);
-        renderCtx.drawImage(renderTemp, 0, 0);
-
-        drawBackground(renderCtx, w, h, i, true, currentExportTimeMs);
-      } else {
-        drawBackground(renderCtx, w, h, i, true, currentExportTimeMs);
-        const keyed = getKeyedFrameCanvas(i);
-        renderCtx.drawImage(keyed, 0, 0);
-      }
-
-      const delay = Math.max(20, Math.round((state.gifDelays[i] || 100) / speed));
-      currentExportTimeMs += delay;
-      gif.addFrame(renderCtx, { copy: true, delay });
+      // GIF delays are stored in 1/100 s: spread the rounding error so total duration stays exact
+      const wanted = (state.gifDelays[i] || 100) / speed + carry;
+      const cs = Math.max(2, Math.round(wanted / 10));
+      carry = wanted - cs * 10;
+      delays.push(cs * 10);
 
       await new Promise((r) => setTimeout(r, 0));
     }
 
-    modalSubtitle.textContent = 'Encodage du GIF...';
+    if (wasPlaying) {
+      state.playing = true;
+      updatePlayButton();
+      startAnimation();
+    }
+
+    if (state.exportCancelled) {
+      exportModal.classList.add('hidden');
+      return;
+    }
+
+    // Binary transparency: every non-opaque pixel gets the reserved key colour
+    if (hasAlpha) {
+      const kr = (EXPORT_TRANSPARENT_KEY >> 16) & 255;
+      const kg = (EXPORT_TRANSPARENT_KEY >> 8) & 255;
+      const kb = EXPORT_TRANSPARENT_KEY & 255;
+      for (const imageData of rendered) {
+        const d = imageData.data;
+        for (let p = 0; p < d.length; p += 4) {
+          if (d[p + 3] < 128) {
+            d[p] = kr; d[p + 1] = kg; d[p + 2] = kb;
+          }
+          d[p + 3] = 255;
+        }
+      }
+    }
+
+    modalSubtitle.textContent = 'Encodage du GIF (qualité maximale)...';
+
+    const gif = new GIF({
+      workers: Math.min(8, Math.max(2, navigator.hardwareConcurrency || 2)),
+      quality: 1,
+      dither: 'FloydSteinberg-serpentine',
+      width: w,
+      height: h,
+      transparent: hasAlpha ? EXPORT_TRANSPARENT_KEY : null,
+      workerScript: 'lib/gif.worker.js',
+    });
+
+    rendered.forEach((imageData, n) => gif.addFrame(imageData, { delay: delays[n] }));
+
+    gif.on('progress', (p) => {
+      if (state.exportCancelled) return;
+      setExportProgress(50 + p * 50);
+    });
 
     gif.on('finished', (blob) => {
       if (state.exportCancelled) return;
@@ -905,23 +1008,15 @@
       btnDownload.href = state.exportBlobUrl;
       if (modalActionsDone) modalActionsDone.classList.remove('hidden');
 
-      if (exportModalIcon) {
-        exportModalIcon.classList.add('done');
-        exportModalIcon.innerHTML = `
-          <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="8 12 11 15 16 9" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-        `;
-      }
-      modalTitle.textContent = 'Exportation terminée !';
+      setExportIcon(true);
+      modalTitle.textContent = 'Rendu terminé !';
       const sizeMB = (blob.size / (1024 * 1024)).toFixed(2);
-      modalSubtitle.textContent = `Taille: ${sizeMB} Mo`;
-      exportProgress.style.width = '100%';
-      exportPercent.textContent = '100%';
+      modalSubtitle.textContent = `${indices.length} frames · ${sizeMB} Mo`;
+      setExportProgress(100);
     });
 
     gif.render();
+    state.activeGif = gif;
   }
 
   function setupUpload(zone, input, handler) {
@@ -978,6 +1073,8 @@
     if (ctrlBgStartFrame) ctrlBgStartFrame.value = 1;
     updateBgStartFrameLimits();
     setBeforeStartOption('hide');
+    state.frameTransforms = state.frameTransforms.map(() => null);
+    updateAdjustButton();
     if (!state.playing && state.gifFrames.length > 0) {
       compositeFrame(state.currentFrame);
     }
@@ -1011,7 +1108,7 @@
     ctrl.addEventListener('input', async () => {
       $(`#${valId}`).textContent = format(ctrl.value);
       if (ctrl === ctrlTolerance) {
-        await updateTracking();
+        await updateTracking(true);
       }
       if (ctrl === ctrlBgSpeed && state.bgType === 'video' && state.bgImage) {
         state.bgImage.playbackRate = parseFloat(ctrlBgSpeed.value) || 1.0;
@@ -1024,7 +1121,7 @@
 
   ctrlChromaColor.addEventListener('input', async () => {
     $('#val-chromacolor').textContent = ctrlChromaColor.value;
-    await updateTracking();
+    await updateTracking(true);
     if (!state.playing && state.gifFrames.length > 0) {
       compositeFrame(state.currentFrame);
     }
@@ -1033,11 +1130,15 @@
   function closeExportModal() {
     if (modalActionsDone && modalActionsDone.classList.contains('hidden')) {
       state.exportCancelled = true;
+      if (state.activeGif) {
+        state.activeGif.abort();
+        state.activeGif = null;
+      }
     }
     exportModal.classList.add('hidden');
   }
 
-  btnExport.addEventListener('click', exportGif);
+  btnRender.addEventListener('click', exportGif);
   if (btnCancelExport) btnCancelExport.addEventListener('click', closeExportModal);
   if (btnFinishExport) btnFinishExport.addEventListener('click', closeExportModal);
   if (btnCloseExport) btnCloseExport.addEventListener('click', closeExportModal);
@@ -1185,6 +1286,73 @@
   const bulkDelayInput = $('#bulk-delay-input');
   const btnBulkApply = $('#btn-bulk-apply');
 
+  const ICON_COPY = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  const ICON_TRASH = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
+  const ICON_RESTORE = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>';
+
+  function updateFramesCount() {
+    if (!framesCount) return;
+    const total = state.gifFrames.length;
+    const active = state.frameDisabled.filter((d) => !d).length;
+    framesCount.textContent = active === total ? `${total} frames` : `${active} / ${total} frames`;
+  }
+
+  function showFrame(i) {
+    state.playing = false;
+    state.currentFrame = i;
+    updatePlayButton();
+    compositeFrame(i);
+    frameCounter.textContent = `${i + 1} / ${state.gifFrames.length}`;
+    progressBar.style.width = `${((i + 1) / state.gifFrames.length) * 100}%`;
+    updateActiveFrameCard(i);
+  }
+
+  function duplicateFrame(i) {
+    const at = i + 1;
+    const oldLen = state.gifFrames.length;
+    state.keyedFrames.length = oldLen;
+    state.gifFrames.splice(at, 0, state.gifFrames[i]);
+    state.gifDelays.splice(at, 0, state.gifDelays[i]);
+    state.frameSrc.splice(at, 0, state.frameSrc[i]);
+    state.frameDisabled.splice(at, 0, state.frameDisabled[i]);
+    state.frameTransforms.splice(at, 0, state.frameTransforms[i] ? { ...state.frameTransforms[i] } : null);
+    state.trackingData.splice(at, 0, state.trackingData[i] ? { ...state.trackingData[i] } : null);
+    state.keyedFrames.splice(at, 0, state.keyedFrames[i]);
+    renderFrameStrip();
+    showFrame(at);
+    const card = framesStrip.querySelector(`[data-frame-index="${at}"]`);
+    if (card) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  function toggleFrame(i) {
+    state.frameDisabled[i] = !state.frameDisabled[i];
+    const card = framesStrip.querySelector(`[data-frame-index="${i}"]`);
+    if (card) applyDisabledLook(card, state.frameDisabled[i]);
+    updateFramesCount();
+  }
+
+  function applyDisabledLook(card, disabled) {
+    card.classList.toggle('disabled', disabled);
+    const btn = card.querySelector('.frame-btn-delete');
+    if (btn) {
+      btn.innerHTML = disabled ? ICON_RESTORE : ICON_TRASH;
+      btn.title = disabled ? 'Réactiver la frame' : 'Désactiver la frame (exclue du rendu)';
+    }
+  }
+
+  function makeFrameButton(className, icon, title, onClick) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `frame-btn ${className}`;
+    btn.innerHTML = icon;
+    btn.title = title;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onClick();
+    });
+    return btn;
+  }
+
   function renderFrameStrip() {
     if (!framesStrip) return;
     framesStrip.innerHTML = '';
@@ -1193,7 +1361,11 @@
     const THUMB_W = 64;
     const THUMB_H = Math.round(THUMB_W * (state.gifHeight / state.gifWidth)) || 48;
 
-    // Render each frame thumbnail asynchronously
+    const srcCanvas = document.createElement('canvas');
+    srcCanvas.width = state.gifWidth;
+    srcCanvas.height = state.gifHeight;
+    const srcCtx = srcCanvas.getContext('2d');
+
     state.gifFrames.forEach((frame, i) => {
       const card = document.createElement('div');
       card.className = 'frame-card' + (i === state.currentFrame ? ' active-frame' : '');
@@ -1203,21 +1375,16 @@
       numEl.className = 'frame-num';
       numEl.textContent = i + 1;
 
-      // Thumbnail canvas
       const thumbCanvas = document.createElement('canvas');
       thumbCanvas.width = THUMB_W;
       thumbCanvas.height = THUMB_H;
       thumbCanvas.className = 'frame-thumb';
       const tCtx = thumbCanvas.getContext('2d');
+      tCtx.imageSmoothingQuality = 'high';
+      srcCtx.putImageData(frame, 0, 0);
+      tCtx.drawImage(srcCanvas, 0, 0, THUMB_W, THUMB_H);
+      thumbCanvas.addEventListener('click', () => showFrame(i));
 
-      // Draw scaled-down frame
-      const tmpC = document.createElement('canvas');
-      tmpC.width = state.gifWidth;
-      tmpC.height = state.gifHeight;
-      tmpC.getContext('2d').putImageData(frame, 0, 0);
-      tCtx.drawImage(tmpC, 0, 0, THUMB_W, THUMB_H);
-
-      // Delay row
       const delayRow = document.createElement('div');
       delayRow.className = 'frame-delay-row';
 
@@ -1238,27 +1405,27 @@
         const val = Math.max(10, Math.min(9999, parseInt(delayInput.value) || 100));
         delayInput.value = val;
         state.gifDelays[i] = val;
-        // Reset cached keyed frames since timing changed (not strictly needed but safe)
       });
 
-      delayInput.addEventListener('focus', () => {
-        state.playing = false;
-        state.currentFrame = i;
-        updatePlayButton();
-        compositeFrame(i);
-        updateActiveFrameCard(i);
-      });
+      delayInput.addEventListener('focus', () => showFrame(i));
 
       delayRow.appendChild(delayInput);
       delayRow.appendChild(delayLabel);
 
+      const actions = document.createElement('div');
+      actions.className = 'frame-actions';
+      actions.appendChild(makeFrameButton('frame-btn-copy', ICON_COPY, 'Dupliquer la frame (copie juste après)', () => duplicateFrame(i)));
+      actions.appendChild(makeFrameButton('frame-btn-delete', ICON_TRASH, '', () => toggleFrame(i)));
+
       card.appendChild(numEl);
       card.appendChild(thumbCanvas);
       card.appendChild(delayRow);
+      card.appendChild(actions);
+      applyDisabledLook(card, state.frameDisabled[i]);
       framesStrip.appendChild(card);
     });
 
-    if (framesCount) framesCount.textContent = `${state.gifFrames.length} frames`;
+    updateFramesCount();
   }
 
   function updateActiveFrameCard(idx) {
@@ -1273,274 +1440,437 @@
       const val = Math.max(10, Math.min(9999, parseInt(bulkDelayInput.value) || 0));
       if (!val) return;
       state.gifDelays = state.gifDelays.map(() => val);
-      // Update all inputs in strip
       framesStrip.querySelectorAll('.frame-delay-input').forEach((inp) => {
         inp.value = val;
       });
     });
   }
 
-  // ---- Transform Overlay ----
-  const transformOverlay = $('#transform-overlay');
-  const transformBox = $('#transform-box');
-  const transformRotateHandle = $('#t-rotate-handle');
 
-  function getCanvasRect() {
-    return canvas.getBoundingClientRect();
-  }
+  // ---- Position editor (per-frame placement of the overlay image) ----
+  const peModal = $('#pos-editor-modal');
+  const peCanvas = $('#pe-canvas');
+  const peCtx = peCanvas.getContext('2d', { willReadFrequently: true });
+  const peArea = $('#pe-canvas-area');
+  const peOverlay = $('#pe-overlay');
+  const peBox = $('#pe-box');
+  const peRotateHandle = $('#pe-rotate-handle');
+  const peStrip = $('#pe-strip');
+  const peFrameLabel = $('#pe-frame-label');
+  const peStatus = $('#pe-status');
+  const peInputs = {
+    x: $('#pe-x'),
+    y: $('#pe-y'),
+    w: $('#pe-w'),
+    h: $('#pe-h'),
+    rot: $('#pe-rot'),
+  };
+  const peLockRatio = $('#pe-lock-ratio');
+  const peScratch = document.createElement('canvas');
+  const peThumbSrc = document.createElement('canvas');
+  const peThumbSrcCtx = peThumbSrc.getContext('2d', { willReadFrequently: true });
 
-  function canvasCoordsToPixel(clientX, clientY) {
-    const rect = getCanvasRect();
-    const scaleX = state.gifWidth / rect.width;
-    const scaleY = state.gifHeight / rect.height;
-    return {
-      x: (clientX - rect.left) * scaleX,
-      y: (clientY - rect.top) * scaleY,
-    };
-  }
+  const pe = {
+    open: false,
+    wasPlaying: false,
+    draft: [],
+    index: 0,
+    scale: 1,
+    drag: null,
+    token: 0,
+    renderPending: false,
+    queue: Promise.resolve(),
+  };
 
-  function applyOverlayBoxCSS() {
-    if (!transformBox || !canvas) return;
-    const canvasRect = getCanvasRect();
-    const containerRect = canvas.parentElement.getBoundingClientRect();
+  const PE_MIN_SIZE = 8;
 
-    const ot = state.overlayTransform;
-    const scaleFactorX = canvasRect.width / state.gifWidth;
-    const scaleFactorY = canvasRect.height / state.gifHeight;
-
-    const left = (canvasRect.left - containerRect.left) + ot.x * scaleFactorX;
-    const top  = (canvasRect.top  - containerRect.top)  + ot.y * scaleFactorY;
-    const boxW = ot.w * scaleFactorX * ot.scaleX;
-    const boxH = ot.h * scaleFactorY * ot.scaleY;
-
-    transformBox.style.left     = left + 'px';
-    transformBox.style.top      = top + 'px';
-    transformBox.style.width    = boxW + 'px';
-    transformBox.style.height   = boxH + 'px';
-    transformBox.style.transform = `rotate(${ot.rotation}rad)`;
-  }
-
-  function initOverlayFromBg() {
-    if (!state.bgType) return;
-    let srcW = state.gifWidth;
-    let srcH = state.gifHeight;
+  function bgDimensions() {
     if (state.bgType === 'image' && state.bgImage) {
-      srcW = state.bgImage.naturalWidth || state.bgImage.width;
-      srcH = state.bgImage.naturalHeight || state.bgImage.height;
-    } else if (state.bgType === 'video' && state.bgImage) {
-      srcW = state.bgImage.videoWidth || state.gifWidth;
-      srcH = state.bgImage.videoHeight || state.gifHeight;
-    } else if (state.bgType === 'gif') {
-      srcW = state.bgGifWidth;
-      srcH = state.bgGifHeight;
+      return { w: state.bgImage.naturalWidth || state.bgImage.width, h: state.bgImage.naturalHeight || state.bgImage.height };
     }
-    if (!srcW || !srcH) return;
+    if (state.bgType === 'video' && state.bgImage) {
+      return { w: state.bgImage.videoWidth, h: state.bgImage.videoHeight };
+    }
+    if (state.bgType === 'gif') {
+      return { w: state.bgGifWidth, h: state.bgGifHeight };
+    }
+    return null;
+  }
 
-    const gW = state.gifWidth;
-    const gH = state.gifHeight;
-    // Fit bg source into GIF canvas, centered
-    const cover = Math.max(gW / srcW, gH / srcH);
-    const fW = srcW * cover;
-    const fH = srcH * cover;
+  // Tracked placement of the overlay image (what the render does when nothing was edited)
+  function autoTransform(i) {
+    const d = bgDimensions();
+    if (!d || !d.w || !d.h) return null;
+    const gw = state.gifWidth;
+    const gh = state.gifHeight;
+    const p = autoPlacement(i, gw, gh, d.w, d.h);
+    if (p) return { cx: p.cx, cy: p.cy, w: p.w, h: p.h, rot: p.rot };
+    const cover = Math.max(gw / d.w, gh / d.h);
+    return { cx: gw / 2, cy: gh / 2, w: d.w * cover, h: d.h * cover, rot: 0 };
+  }
 
-    state.overlayTransform = {
-      x: (gW - fW) / 2,
-      y: (gH - fH) / 2,
-      w: fW,
-      h: fH,
-      rotation: 0,
-      scaleX: 1,
-      scaleY: 1,
+  function peTransform(i) {
+    return pe.draft[i] || autoTransform(i);
+  }
+
+  function peEdit(mutate) {
+    const i = pe.index;
+    const t = pe.draft[i] ? pe.draft[i] : { ...peTransform(i) };
+    mutate(t);
+    pe.draft[i] = t;
+    peAfterChange();
+  }
+
+  function peAfterChange() {
+    peLayoutBox();
+    peSyncInputs();
+    peRequestRender();
+    peUpdateStatus();
+    const thumb = peStrip.children[pe.index];
+    if (thumb) thumb.classList.toggle('edited', Boolean(pe.draft[pe.index]));
+  }
+
+  function peLayoutOverlay() {
+    // Fill as much of the editing area as possible (upscaling small GIFs)
+    const pad = 64;
+    const fit = Math.min(
+      (peArea.clientWidth - pad * 2) / state.gifWidth,
+      (peArea.clientHeight - pad * 2) / state.gifHeight
+    );
+    if (fit > 0) {
+      peCanvas.style.width = Math.floor(state.gifWidth * fit) + 'px';
+      peCanvas.style.height = Math.floor(state.gifHeight * fit) + 'px';
+    }
+    const canvasRect = peCanvas.getBoundingClientRect();
+    const areaRect = peArea.getBoundingClientRect();
+    pe.scale = canvasRect.width / state.gifWidth || 1;
+    peOverlay.style.left = (canvasRect.left - areaRect.left) + 'px';
+    peOverlay.style.top = (canvasRect.top - areaRect.top) + 'px';
+    peOverlay.style.width = canvasRect.width + 'px';
+    peOverlay.style.height = canvasRect.height + 'px';
+    peLayoutBox();
+  }
+
+  function peLayoutBox() {
+    const t = peTransform(pe.index);
+    if (!t) return;
+    const s = pe.scale;
+    peBox.style.width = (t.w * s) + 'px';
+    peBox.style.height = (t.h * s) + 'px';
+    peBox.style.left = ((t.cx - t.w / 2) * s) + 'px';
+    peBox.style.top = ((t.cy - t.h / 2) * s) + 'px';
+    peBox.style.transform = `rotate(${t.rot}rad)`;
+  }
+
+  function normalizeDeg(rad) {
+    const deg = (rad * 180) / Math.PI;
+    return ((deg + 180) % 360 + 360) % 360 - 180;
+  }
+
+  function peSyncInputs() {
+    const t = peTransform(pe.index);
+    if (!t) return;
+    const values = {
+      x: Math.round(t.cx),
+      y: Math.round(t.cy),
+      w: Math.round(t.w),
+      h: Math.round(t.h),
+      rot: Math.round(normalizeDeg(t.rot) * 10) / 10,
     };
-    state.useOverlayTransform = true;
-    applyOverlayBoxCSS();
-    transformOverlay.classList.remove('hidden');
-    transformOverlay.classList.add('active');
+    Object.keys(peInputs).forEach((key) => {
+      if (document.activeElement !== peInputs[key]) peInputs[key].value = values[key];
+    });
   }
 
-  function setupTransformOverlay() {
-    if (!transformBox || !transformOverlay) return;
+  function peUpdateStatus() {
+    const manual = pe.draft.filter(Boolean).length;
+    peStatus.textContent = manual === 0
+      ? 'Aucune transformation manuelle (suivi automatique)'
+      : `${manual} frame${manual > 1 ? 's' : ''} ajustée${manual > 1 ? 's' : ''} manuellement`;
+  }
 
-    let dragging = false;
-    let dragStartX = 0, dragStartY = 0;
-    let dragStartOT = null;
-
-    // Move (drag box itself)
-    transformBox.addEventListener('pointerdown', (e) => {
-      // Only handle direct clicks on the box (not handles)
-      if (e.target.classList.contains('t-handle') || e.target.closest('.t-rotate-handle')) return;
-      e.preventDefault();
-      dragging = true;
-      dragStartX = e.clientX;
-      dragStartY = e.clientY;
-      dragStartOT = { ...state.overlayTransform };
-      transformBox.setPointerCapture(e.pointerId);
+  // Rendering of the big canvas (and the thumb of the current frame)
+  function peRequestRender() {
+    if (pe.renderPending) return;
+    pe.renderPending = true;
+    requestAnimationFrame(() => {
+      pe.renderPending = false;
+      if (!pe.open) return;
+      const run = async () => {
+        const i = pe.index;
+        await seekBgVideo(i);
+        if (!pe.open || i !== pe.index) return;
+        paintFrame(peCtx, peScratch, i, true, peTransform(i));
+        peDrawThumb(i, peCanvas);
+      };
+      if (state.bgType === 'video') {
+        pe.queue = pe.queue.then(run);
+      } else {
+        run();
+      }
     });
+  }
 
-    transformBox.addEventListener('pointermove', (e) => {
-      if (!dragging) return;
-      const canvasRect = getCanvasRect();
-      const scaleFactorX = state.gifWidth / canvasRect.width;
-      const scaleFactorY = state.gifHeight / canvasRect.height;
-      const dx = (e.clientX - dragStartX) * scaleFactorX;
-      const dy = (e.clientY - dragStartY) * scaleFactorY;
-      state.overlayTransform.x = dragStartOT.x + dx;
-      state.overlayTransform.y = dragStartOT.y + dy;
-      applyOverlayBoxCSS();
-      if (!state.playing) compositeFrame(state.currentFrame);
+  function peDrawThumb(i, source) {
+    const card = peStrip.children[i];
+    if (!card) return;
+    const thumb = card.querySelector('canvas');
+    const tCtx = thumb.getContext('2d');
+    tCtx.imageSmoothingQuality = 'high';
+    tCtx.clearRect(0, 0, thumb.width, thumb.height);
+    tCtx.drawImage(source, 0, 0, thumb.width, thumb.height);
+  }
+
+  async function peRenderAllThumbs(token) {
+    peThumbSrc.width = state.gifWidth;
+    peThumbSrc.height = state.gifHeight;
+    for (let i = 0; i < state.gifFrames.length; i++) {
+      if (token !== pe.token) return;
+      await seekBgVideo(i);
+      if (token !== pe.token) return;
+      paintFrame(peThumbSrcCtx, peScratch, i, true, peTransform(i));
+      peDrawThumb(i, peThumbSrc);
+      if (i % 4 === 3) await new Promise((r) => setTimeout(r, 0));
+    }
+    if (token === pe.token) peRequestRender();
+  }
+
+  function peBuildStrip() {
+    peStrip.innerHTML = '';
+    const THUMB_W = 112;
+    const THUMB_H = Math.round(THUMB_W * (state.gifHeight / state.gifWidth)) || 63;
+    state.gifFrames.forEach((_, i) => {
+      const card = document.createElement('div');
+      card.className = 'pe-thumb'
+        + (state.frameDisabled[i] ? ' disabled' : '')
+        + (pe.draft[i] ? ' edited' : '');
+      const canvasEl = document.createElement('canvas');
+      canvasEl.width = THUMB_W;
+      canvasEl.height = THUMB_H;
+      const label = document.createElement('span');
+      label.textContent = i + 1;
+      card.appendChild(canvasEl);
+      card.appendChild(label);
+      card.addEventListener('click', () => peSelectFrame(i));
+      peStrip.appendChild(card);
     });
+  }
 
-    transformBox.addEventListener('pointerup', () => { dragging = false; });
+  function peSelectFrame(i) {
+    const n = state.gifFrames.length;
+    pe.index = Math.max(0, Math.min(n - 1, i));
+    Array.from(peStrip.children).forEach((card, k) => card.classList.toggle('active', k === pe.index));
+    const active = peStrip.children[pe.index];
+    if (active) active.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+    peFrameLabel.textContent = `Frame ${pe.index + 1} / ${n}`;
+    peLayoutBox();
+    peSyncInputs();
+    peRequestRender();
+  }
 
-    // Scale handles
-    transformBox.querySelectorAll('.t-handle').forEach((handle) => {
-      let resizing = false;
-      let resStartX = 0, resStartY = 0;
-      let resStartOT = null;
-      const hType = handle.dataset.handle;
+  function openPosEditor() {
+    if (!state.bgType || state.gifFrames.length === 0) return;
+    pe.open = true;
+    pe.wasPlaying = state.playing;
+    if (state.playing) {
+      state.playing = false;
+      updatePlayButton();
+    }
+    pe.draft = state.frameTransforms.map((t) => (t ? { ...t } : null));
+    pe.token++;
 
-      handle.addEventListener('pointerdown', (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        resizing = true;
-        resStartX = e.clientX;
-        resStartY = e.clientY;
-        resStartOT = { ...state.overlayTransform };
-        handle.setPointerCapture(e.pointerId);
+    peCanvas.width = state.gifWidth;
+    peCanvas.height = state.gifHeight;
+    peScratch.width = state.gifWidth;
+    peScratch.height = state.gifHeight;
+
+    peModal.classList.remove('hidden');
+    peBuildStrip();
+    peUpdateStatus();
+    // Layout needs the modal to be visible
+    requestAnimationFrame(() => {
+      peLayoutOverlay();
+      peSelectFrame(state.currentFrame);
+      peRenderAllThumbs(pe.token);
+    });
+  }
+
+  function closePosEditor() {
+    if (!pe.open) return;
+    pe.open = false;
+    pe.token++;
+    pe.drag = null;
+    peModal.classList.add('hidden');
+    showFrame(pe.index);
+    if (pe.wasPlaying) {
+      state.playing = true;
+      updatePlayButton();
+      startAnimation();
+    }
+  }
+
+  function commitPosEditor() {
+    state.frameTransforms = pe.draft.map((t) => (t ? { ...t } : null));
+    closePosEditor();
+    exportGif();
+  }
+
+  // Pointer interaction on the box
+  function peStartDrag(mode, handle, e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const t = { ...peTransform(pe.index) };
+    pe.drag = { mode, handle, startX: e.clientX, startY: e.clientY, t0: t, angle0: 0, center: null };
+    if (mode === 'rotate') {
+      const r = peOverlay.getBoundingClientRect();
+      const sx = r.left + t.cx * pe.scale;
+      const sy = r.top + t.cy * pe.scale;
+      pe.drag.angle0 = Math.atan2(e.clientY - sy, e.clientX - sx);
+      pe.drag.center = { x: sx, y: sy };
+    }
+  }
+
+  function peOnPointerMove(e) {
+    const d = pe.drag;
+    if (!d) return;
+    const s = pe.scale;
+    const dx = (e.clientX - d.startX) / s;
+    const dy = (e.clientY - d.startY) / s;
+    const t0 = d.t0;
+
+    if (d.mode === 'move') {
+      peEdit((t) => {
+        t.cx = t0.cx + dx;
+        t.cy = t0.cy + dy;
       });
+      return;
+    }
 
-      handle.addEventListener('pointermove', (e) => {
-        if (!resizing) return;
-        const canvasRect = getCanvasRect();
-        const sfX = state.gifWidth / canvasRect.width;
-        const sfY = state.gifHeight / canvasRect.height;
-        const dx = (e.clientX - resStartX) * sfX;
-        const dy = (e.clientY - resStartY) * sfY;
-
-        const ot = state.overlayTransform;
-        const orig = resStartOT;
-
-        if (hType === 'se') {
-          ot.w = Math.max(20, orig.w + dx);
-          ot.h = Math.max(20, orig.h + dy);
-        } else if (hType === 'nw') {
-          const newW = Math.max(20, orig.w - dx);
-          const newH = Math.max(20, orig.h - dy);
-          ot.x = orig.x + (orig.w - newW);
-          ot.y = orig.y + (orig.h - newH);
-          ot.w = newW;
-          ot.h = newH;
-        } else if (hType === 'ne') {
-          const newH = Math.max(20, orig.h - dy);
-          ot.y = orig.y + (orig.h - newH);
-          ot.w = Math.max(20, orig.w + dx);
-          ot.h = newH;
-        } else if (hType === 'sw') {
-          const newW = Math.max(20, orig.w - dx);
-          ot.x = orig.x + (orig.w - newW);
-          ot.w = newW;
-          ot.h = Math.max(20, orig.h + dy);
-        } else if (hType === 'e') {
-          ot.w = Math.max(20, orig.w + dx);
-        } else if (hType === 'w') {
-          const newW = Math.max(20, orig.w - dx);
-          ot.x = orig.x + (orig.w - newW);
-          ot.w = newW;
-        } else if (hType === 's') {
-          ot.h = Math.max(20, orig.h + dy);
-        } else if (hType === 'n') {
-          const newH = Math.max(20, orig.h - dy);
-          ot.y = orig.y + (orig.h - newH);
-          ot.h = newH;
+    if (d.mode === 'rotate') {
+      const a = Math.atan2(e.clientY - d.center.y, e.clientX - d.center.x);
+      peEdit((t) => {
+        let rot = t0.rot + (a - d.angle0);
+        if (e.shiftKey) {
+          const step = Math.PI / 12;
+          rot = Math.round(rot / step) * step;
         }
-
-        applyOverlayBoxCSS();
-        if (!state.playing) compositeFrame(state.currentFrame);
+        t.rot = rot;
       });
-
-      handle.addEventListener('pointerup', () => { resizing = false; });
-    });
-
-    // Rotation handle
-    if (transformRotateHandle) {
-      let rotating = false;
-      let rotCenter = { x: 0, y: 0 };
-      let rotStartAngle = 0;
-      let rotStartOTAngle = 0;
-
-      transformRotateHandle.addEventListener('pointerdown', (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        rotating = true;
-        const canvasRect = getCanvasRect();
-        const sfX = state.gifWidth / canvasRect.width;
-        const sfY = state.gifHeight / canvasRect.height;
-        const containerRect = canvas.parentElement.getBoundingClientRect();
-        const ot = state.overlayTransform;
-        // Center of box in screen coords
-        rotCenter.x = canvasRect.left + (ot.x + ot.w / 2) / sfX;
-        rotCenter.y = canvasRect.top  + (ot.y + ot.h / 2) / sfY;
-        rotStartAngle = Math.atan2(e.clientY - rotCenter.y, e.clientX - rotCenter.x);
-        rotStartOTAngle = ot.rotation;
-        transformRotateHandle.setPointerCapture(e.pointerId);
-      });
-
-      transformRotateHandle.addEventListener('pointermove', (e) => {
-        if (!rotating) return;
-        const angle = Math.atan2(e.clientY - rotCenter.y, e.clientX - rotCenter.x);
-        state.overlayTransform.rotation = rotStartOTAngle + (angle - rotStartAngle);
-        applyOverlayBoxCSS();
-        if (!state.playing) compositeFrame(state.currentFrame);
-      });
-
-      transformRotateHandle.addEventListener('pointerup', () => { rotating = false; });
+      return;
     }
 
-    // Reset button
-    const resetBtn = document.createElement('button');
-    resetBtn.id = 'transform-reset-btn';
-    resetBtn.textContent = '⟳ Réinitialiser';
-    resetBtn.title = 'Réinitialiser la position';
-    resetBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      state.useOverlayTransform = false;
-      initOverlayFromBg();
-      compositeFrame(state.currentFrame);
+    // Resize in the box's own (rotated) axes, the opposite side stays fixed
+    const cos = Math.cos(t0.rot);
+    const sin = Math.sin(t0.rot);
+    const ldx = dx * cos + dy * sin;
+    const ldy = -dx * sin + dy * cos;
+    const hd = d.handle;
+    const sx = hd.includes('e') ? 1 : hd.includes('w') ? -1 : 0;
+    const sy = hd.includes('s') ? 1 : hd.includes('n') ? -1 : 0;
+
+    let newW = t0.w + sx * ldx;
+    let newH = t0.h + sy * ldy;
+
+    if (sx !== 0 && sy !== 0 && peLockRatio.checked) {
+      const k = Math.max(PE_MIN_SIZE / t0.w, PE_MIN_SIZE / t0.h, (newW / t0.w + newH / t0.h) / 2);
+      newW = t0.w * k;
+      newH = t0.h * k;
+    }
+    newW = Math.max(PE_MIN_SIZE, newW);
+    newH = Math.max(PE_MIN_SIZE, newH);
+
+    const shiftX = sx * (newW - t0.w) / 2;
+    const shiftY = sy * (newH - t0.h) / 2;
+    peEdit((t) => {
+      t.w = newW;
+      t.h = newH;
+      t.cx = t0.cx + shiftX * cos - shiftY * sin;
+      t.cy = t0.cy + shiftX * sin + shiftY * cos;
     });
-    transformBox.appendChild(resetBtn);
   }
 
-  setupTransformOverlay();
-
-  // Wire up the upload zone to also init the overlay after BG loads
-  async function loadBackgroundWrapped(file) {
-    await loadBackground(file);
-    // After BG loaded, init overlay (GIF must also be selected)
-    if (state.gifFrames.length > 0) {
-      initOverlayFromBg();
-    }
+  function peEndDrag() {
+    pe.drag = null;
   }
 
-  // Replace the original setupUpload(uploadBg, inputBg, loadBackground) with the wrapped version
-  // by cloning the input element to remove old listeners and re-registering
-  const newInputBg = inputBg.cloneNode(true);
-  inputBg.parentNode.replaceChild(newInputBg, inputBg);
-  setupUpload(uploadBg, newInputBg, loadBackgroundWrapped);
-
-  // When BG is removed, hide overlay
-  document.querySelector('#btn-remove-bg').addEventListener('click', () => {
-    if (transformOverlay) {
-      transformOverlay.classList.add('hidden');
-      transformOverlay.classList.remove('active');
-    }
-    state.useOverlayTransform = false;
-  }, { capture: true });
-
-  // When window resizes, refresh overlay CSS positions
+  peBox.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.pe-handle') || e.target.closest('.pe-rotate-handle')) return;
+    peStartDrag('move', null, e);
+  });
+  peBox.querySelectorAll('.pe-handle').forEach((el) => {
+    el.addEventListener('pointerdown', (e) => peStartDrag('resize', el.dataset.h, e));
+  });
+  peRotateHandle.addEventListener('pointerdown', (e) => peStartDrag('rotate', null, e));
+  window.addEventListener('pointermove', peOnPointerMove);
+  window.addEventListener('pointerup', peEndDrag);
+  window.addEventListener('pointercancel', peEndDrag);
   window.addEventListener('resize', () => {
-    if (state.useOverlayTransform) applyOverlayBoxCSS();
+    if (pe.open) peLayoutOverlay();
   });
 
+  // Numeric fields
+  Object.entries(peInputs).forEach(([key, input]) => {
+    input.addEventListener('input', () => {
+      const v = parseFloat(input.value);
+      if (!Number.isFinite(v)) return;
+      peEdit((t) => {
+        if (key === 'x') t.cx = v;
+        else if (key === 'y') t.cy = v;
+        else if (key === 'rot') t.rot = (v * Math.PI) / 180;
+        else if (key === 'w') {
+          const ratio = t.h / t.w;
+          t.w = Math.max(PE_MIN_SIZE, v);
+          if (peLockRatio.checked) t.h = Math.max(PE_MIN_SIZE, t.w * ratio);
+        } else if (key === 'h') {
+          const ratio = t.w / t.h;
+          t.h = Math.max(PE_MIN_SIZE, v);
+          if (peLockRatio.checked) t.w = Math.max(PE_MIN_SIZE, t.h * ratio);
+        }
+      });
+    });
+    input.addEventListener('blur', peSyncInputs);
+  });
+
+  $('#pe-btn-reset').addEventListener('click', () => {
+    pe.draft[pe.index] = null;
+    peAfterChange();
+  });
+
+  $('#pe-btn-apply-all').addEventListener('click', () => {
+    const t = peTransform(pe.index);
+    if (!t) return;
+    pe.draft = state.gifFrames.map(() => ({ ...t }));
+    Array.from(peStrip.children).forEach((card) => card.classList.add('edited'));
+    peAfterChange();
+    pe.token++;
+    peRenderAllThumbs(pe.token);
+  });
+
+  $('#pe-btn-apply-frame').addEventListener('click', () => {
+    // Freeze the current placement for this frame, then move on to the next one
+    if (!pe.draft[pe.index]) pe.draft[pe.index] = { ...peTransform(pe.index) };
+    const card = peStrip.children[pe.index];
+    if (card) card.classList.add('edited');
+    peUpdateStatus();
+    if (pe.index < state.gifFrames.length - 1) peSelectFrame(pe.index + 1);
+  });
+
+  $('#pe-strip-prev').addEventListener('click', () => peSelectFrame(pe.index - 1));
+  $('#pe-strip-next').addEventListener('click', () => peSelectFrame(pe.index + 1));
+  $('#pe-btn-close').addEventListener('click', closePosEditor);
+  $('#pe-btn-cancel').addEventListener('click', closePosEditor);
+  $('#pe-btn-done').addEventListener('click', commitPosEditor);
+  btnAdjustPos.addEventListener('click', openPosEditor);
+
+  document.addEventListener('keydown', (e) => {
+    if (!pe.open) return;
+    if (e.key === 'Escape') {
+      closePosEditor();
+    } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !(e.target instanceof HTMLInputElement)) {
+      e.preventDefault();
+      peSelectFrame(pe.index + (e.key === 'ArrowRight' ? 1 : -1));
+    }
+  });
 
   document.addEventListener('dragover', (e) => e.preventDefault());
   document.addEventListener('drop', (e) => e.preventDefault());
