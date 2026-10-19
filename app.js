@@ -29,6 +29,9 @@
     // Per-frame data (parallel to gifFrames)
     // frameTransforms[i]: null (auto tracking) or { cx, cy, w, h, rot } = placement of the overlay image
     frameTransforms: [],
+    // trackMode: edits are a global offset on top of the tracking; otherwise per-frame absolute transforms
+    trackMode: true,
+    trackOffset: null, // { dx, dy, sw, sh, rot } or null
     frameDisabled: [],
     frameSrc: [],
     srcCount: 0,
@@ -194,6 +197,7 @@
       state.gifHeight = height;
       state.currentFrame = 0;
       state.frameTransforms = frames.map(() => null);
+      state.trackOffset = null;
       state.frameDisabled = frames.map(() => false);
       state.frameSrc = frames.map((_, k) => k);
       state.srcCount = frames.length;
@@ -394,6 +398,7 @@
     uploadBg.classList.add('hidden');
     bgFilename.textContent = file.name;
     state.frameTransforms = state.frameTransforms.map(() => null);
+    state.trackOffset = null;
     updateAdjustButton();
     if (!state.playing && state.gifFrames.length > 0) {
       compositeFrame(state.currentFrame);
@@ -689,13 +694,33 @@
     };
   }
 
+  function applyTrackOffset(a, o) {
+    return { cx: a.cx + o.dx, cy: a.cy + o.dy, w: a.w * o.sw, h: a.h * o.sh, rot: a.rot + o.rot };
+  }
+
+  // Delta between a wanted transform and the tracked one
+  function trackOffsetFrom(t, a) {
+    return { dx: t.cx - a.cx, dy: t.cy - a.cy, sw: t.w / a.w, sh: t.h / a.h, rot: t.rot - a.rot };
+  }
+
+  // Stored transform of a frame: manual one, tracking + global offset, or null (plain tracking)
+  function transformFor(frameIndex) {
+    const manual = state.frameTransforms[frameIndex];
+    if (manual) return manual;
+    if (state.trackOffset) {
+      const a = autoTransform(frameIndex);
+      if (a) return applyTrackOffset(a, state.trackOffset);
+    }
+    return null;
+  }
+
   // ftOverride: undefined = use the stored transform, null = force tracking, object = explicit transform
   function drawBackground(targetCtx, w, h, frameIndex, isExport, ftOverride) {
     const info = resolveBackground(frameIndex, isExport);
     if (!info || !info.bgW || !info.bgH) return;
 
     const { source: bgSource, bgW, bgH } = info;
-    const ft = ftOverride !== undefined ? ftOverride : state.frameTransforms[frameIndex];
+    const ft = ftOverride !== undefined ? ftOverride : transformFor(frameIndex);
 
     if (ft) {
       targetCtx.save();
@@ -1074,6 +1099,7 @@
     updateBgStartFrameLimits();
     setBeforeStartOption('hide');
     state.frameTransforms = state.frameTransforms.map(() => null);
+    state.trackOffset = null;
     updateAdjustButton();
     if (!state.playing && state.gifFrames.length > 0) {
       compositeFrame(state.currentFrame);
@@ -1466,6 +1492,7 @@
     rot: $('#pe-rot'),
   };
   const peLockRatio = $('#pe-lock-ratio');
+  const peTrackCheckbox = $('#pe-keep-tracking');
   const peScratch = document.createElement('canvas');
   const peThumbSrc = document.createElement('canvas');
   const peThumbSrcCtx = peThumbSrc.getContext('2d', { willReadFrequently: true });
@@ -1474,6 +1501,9 @@
     open: false,
     wasPlaying: false,
     draft: [],
+    track: true,
+    offset: null,
+    thumbTimer: null,
     index: 0,
     scale: 1,
     drag: null,
@@ -1510,15 +1540,37 @@
   }
 
   function peTransform(i) {
-    return pe.draft[i] || autoTransform(i);
+    if (!pe.track) return pe.draft[i] || autoTransform(i);
+    const a = autoTransform(i);
+    return a && pe.offset ? applyTrackOffset(a, pe.offset) : a;
   }
 
   function peEdit(mutate) {
     const i = pe.index;
-    const t = pe.draft[i] ? pe.draft[i] : { ...peTransform(i) };
+    const t = { ...peTransform(i) };
     mutate(t);
-    pe.draft[i] = t;
+    if (pe.track) {
+      pe.offset = trackOffsetFrom(t, autoTransform(i));
+      // The offset moves every frame: refresh the other thumbnails once editing pauses
+      clearTimeout(pe.thumbTimer);
+      pe.thumbTimer = setTimeout(() => {
+        if (!pe.open) return;
+        pe.token++;
+        peRenderAllThumbs(pe.token);
+      }, 200);
+    } else {
+      pe.draft[i] = t;
+    }
     peAfterChange();
+  }
+
+  function peUpdateModeUi() {
+    $('#pe-btn-apply-all').classList.toggle('hidden', pe.track);
+    $('#pe-btn-apply-frame').classList.toggle('hidden', pe.track);
+    Array.from(peStrip.children).forEach((card, k) => {
+      card.classList.toggle('edited', !pe.track && Boolean(pe.draft[k]));
+    });
+    peUpdateStatus();
   }
 
   function peAfterChange() {
@@ -1527,7 +1579,7 @@
     peRequestRender();
     peUpdateStatus();
     const thumb = peStrip.children[pe.index];
-    if (thumb) thumb.classList.toggle('edited', Boolean(pe.draft[pe.index]));
+    if (thumb) thumb.classList.toggle('edited', !pe.track && Boolean(pe.draft[pe.index]));
   }
 
   function peLayoutOverlay() {
@@ -1583,6 +1635,12 @@
   }
 
   function peUpdateStatus() {
+    if (pe.track) {
+      peStatus.textContent = pe.offset
+        ? 'Suivi automatique conservé + décalage appliqué à toutes les frames'
+        : 'Suivi automatique (aucun décalage)';
+      return;
+    }
     const manual = pe.draft.filter(Boolean).length;
     peStatus.textContent = manual === 0
       ? 'Aucune transformation manuelle (suivi automatique)'
@@ -1677,6 +1735,10 @@
       updatePlayButton();
     }
     pe.draft = state.frameTransforms.map((t) => (t ? { ...t } : null));
+    pe.track = state.trackMode;
+    pe.offset = state.trackOffset ? { ...state.trackOffset } : null;
+    peTrackCheckbox.checked = pe.track;
+    peUpdateModeUi();
     pe.token++;
 
     peCanvas.width = state.gifWidth;
@@ -1710,7 +1772,9 @@
   }
 
   function commitPosEditor() {
-    state.frameTransforms = pe.draft.map((t) => (t ? { ...t } : null));
+    state.trackMode = pe.track;
+    state.trackOffset = pe.track && pe.offset ? { ...pe.offset } : null;
+    state.frameTransforms = pe.track ? pe.draft.map(() => null) : pe.draft.map((t) => (t ? { ...t } : null));
     closePosEditor();
     exportGif();
   }
@@ -1832,7 +1896,13 @@
   });
 
   $('#pe-btn-reset').addEventListener('click', () => {
-    pe.draft[pe.index] = null;
+    if (pe.track) {
+      pe.offset = null;
+      pe.token++;
+      peRenderAllThumbs(pe.token);
+    } else {
+      pe.draft[pe.index] = null;
+    }
     peAfterChange();
   });
 
@@ -1853,6 +1923,28 @@
     if (card) card.classList.add('edited');
     peUpdateStatus();
     if (pe.index < state.gifFrames.length - 1) peSelectFrame(pe.index + 1);
+  });
+
+  peTrackCheckbox.addEventListener('change', () => {
+    const i = pe.index;
+    if (peTrackCheckbox.checked) {
+      // Free -> tracking: keep this frame's placement as the global offset
+      const a = autoTransform(i);
+      pe.offset = pe.draft[i] && a ? trackOffsetFrom(pe.draft[i], a) : null;
+      pe.track = true;
+    } else {
+      // Tracking -> free: freeze the current look of every frame so it can be edited by hand
+      pe.draft = state.gifFrames.map((_, k) => {
+        const t = peTransform(k);
+        return t ? { ...t } : null;
+      });
+      pe.track = false;
+    }
+    peUpdateModeUi();
+    peLayoutBox();
+    peSyncInputs();
+    pe.token++;
+    peRenderAllThumbs(pe.token);
   });
 
   $('#pe-strip-prev').addEventListener('click', () => peSelectFrame(pe.index - 1));
