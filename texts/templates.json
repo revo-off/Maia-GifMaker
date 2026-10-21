@@ -3,14 +3,14 @@
     "id": "t1",
     "name": "Template 1",
     "width": 1000,
-    "height": 700,
+    "height": 500,
     "background": null,
     "defaultText": "texte",
     "defaultFont": "yellowtail",
     "layers": [
-      { "type": "text", "text": "I", "font": "@selected", "size": 300, "color": "#111111", "x": 355, "y": 330, "align": "right" },
-      { "type": "shape", "shape": "heart", "x": 620, "y": 205, "size": 230, "color": "#ff3347" },
-      { "type": "input", "x": 60, "y": 385, "w": 880, "h": 260, "maxSize": 220, "minSize": 30, "lineHeight": 1.05, "color": "#111111", "align": "center", "valign": "middle" }
+      { "type": "text", "text": "I", "font": "@selected", "size": 200, "color": "#111111", "x": 450, "y": 200, "align": "right" },
+      { "type": "shape", "shape": "heart", "x": 600, "y": 150, "size": 200, "color": "#ff3347" },
+      { "type": "input", "x": 60, "y": 200, "w": 880, "h": 260, "maxSize": 220, "minSize": 30, "lineHeight": 1.05, "color": "#111111", "align": "center", "valign": "middle" }
     ]
   }
 ]
