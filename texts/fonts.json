@@ -1,0 +1,37 @@
+[
+  {
+    "id": "yellowtail",
+    "name": "Yellowtail",
+    "family": "Yellowtail",
+    "google": "Yellowtail",
+    "weights": [400]
+  },
+  {
+    "id": "pacifico",
+    "name": "Pacifico",
+    "family": "Pacifico",
+    "google": "Pacifico",
+    "weights": [400]
+  },
+  {
+    "id": "lobster",
+    "name": "Lobster",
+    "family": "Lobster",
+    "google": "Lobster",
+    "weights": [400]
+  },
+  {
+    "id": "playfair",
+    "name": "Playfair Display",
+    "family": "Playfair Display",
+    "google": "Playfair+Display:wght@400;700;900",
+    "weights": [400, 700, 900]
+  },
+  {
+    "id": "outfit",
+    "name": "Outfit",
+    "family": "Outfit",
+    "google": "Outfit:wght@400;700",
+    "weights": [400, 700]
+  }
+]

@@ -2053,7 +2053,14 @@ label,
   pointer-events: none;
 }
 
-#pe-box {
+#te-overlay {
+  position: absolute;
+  cursor: default;
+  touch-action: none;
+}
+
+#pe-box,
+#te-box {
   position: absolute;
   transform-origin: center center;
   cursor: move !important;
@@ -2325,4 +2332,255 @@ label,
   font-size: 0.7rem;
   line-height: 1.35;
   color: var(--text-tertiary);
+}
+
+/* =============================================
+   TEXT EDITOR
+   ============================================= */
+
+#text-modal { z-index: 9100; }
+
+.te-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.te-templates {
+  width: 150px;
+  flex-shrink: 0;
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  overflow-y: auto;
+  border-right: 1.5px solid var(--glass-border-subtle);
+}
+
+.te-template {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--glass-border);
+  background: #fff;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: var(--cursor-pointer) !important;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.te-template canvas { width: 100%; height: auto; border-radius: 6px; border: 1px solid rgba(0, 0, 0, 0.08); background: repeating-conic-gradient(#d9c5d0 0% 25%, #f1e6ec 0% 50%) 50% / 12px 12px; }
+.te-template:hover { border-color: rgba(255, 84, 30, 0.5); }
+.te-template.active { border-color: var(--sunset-orange); box-shadow: 0 0 0 3px rgba(255, 84, 30, 0.2); color: var(--sunset-orange); }
+
+.te-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  overflow-y: auto;
+}
+
+.te-preview {
+  position: relative;
+  flex: 1;
+  min-height: 160px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: repeating-conic-gradient(#d9c5d0 0% 25%, #eadbe3 0% 50%) 50% / 20px 20px;
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  min-width: 0;
+}
+
+#te-preview {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  background: repeating-conic-gradient(#c9b3bf 0% 25%, #f1e6ec 0% 50%) 50% / 24px 24px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.te-editor,
+.te-font-picker {
+  width: min(100%, 560px);
+  background: #fff;
+  border: 1.5px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.te-editor { position: relative; padding: var(--space-sm); }
+
+.te-textarea {
+  width: 100%;
+  height: 64px;
+  border: 0;
+  outline: none;
+  resize: none;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  background: transparent;
+}
+
+.te-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.te-tool {
+  width: 26px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: #eee;
+  color: #333;
+  font-size: 0.75rem;
+  cursor: var(--cursor-pointer) !important;
+}
+
+.te-tool:hover { background: #ddd; }
+.te-tool.active { background: #2f7bf5; color: #fff; }
+
+.te-font-picker { position: relative; }
+
+.te-font-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border: 0;
+  background: transparent;
+  font-size: 1.05rem;
+  color: var(--text-primary);
+  cursor: var(--cursor-pointer) !important;
+}
+
+.te-font-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  max-height: 260px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1.5px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  z-index: 5;
+}
+
+.te-font-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 14px;
+  border: 0;
+  background: transparent;
+  font-size: 1.15rem;
+  color: var(--text-primary);
+  cursor: var(--cursor-pointer) !important;
+}
+
+.te-font-item:hover { background: rgba(255, 84, 30, 0.1); }
+
+@media (max-width: 700px) {
+  .te-body { flex-direction: column; }
+  .te-templates { width: auto; flex-direction: row; border-right: 0; border-bottom: 1.5px solid var(--glass-border-subtle); }
+  .te-template { width: 110px; flex-shrink: 0; }
+}
+
+.te-toolbar {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.te-color-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.te-color {
+  width: 34px;
+  height: 24px;
+  padding: 0;
+  border: 1.5px solid var(--glass-border);
+  border-radius: 6px;
+  background: none;
+  cursor: var(--cursor-pointer) !important;
+}
+
+.te-images {
+  width: min(100%, 560px);
+  background: #fff;
+  border: 1.5px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-sm) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.te-images-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.te-image-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.te-hint {
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+}
+
+.te-chip {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  border: 2px solid var(--glass-border);
+  background: repeating-conic-gradient(#d9c5d0 0% 25%, #f1e6ec 0% 50%) 50% / 12px 12px;
+  cursor: var(--cursor-pointer) !important;
+}
+
+.te-chip.active { border-color: var(--sunset-orange); }
+.te-chip img { width: 100%; height: 100%; object-fit: contain; border-radius: 6px; }
+
+.te-chip-remove {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: var(--cursor-pointer) !important;
 }

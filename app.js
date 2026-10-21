@@ -405,6 +405,26 @@
     }
   }
 
+  // Uses an already rendered canvas (e.g. the text editor) as a still background
+  function setBackgroundFromCanvas(srcCanvas, label) {
+    if (state.bgType === 'video' && state.bgImage) state.bgImage.pause();
+    state.bgType = 'image';
+    state.bgImage = srcCanvas;
+    state.bgGifFrames = [];
+    groupBgSpeed.classList.add('hidden');
+    if (groupBgStartFrame) groupBgStartFrame.classList.remove('hidden');
+    updateBgStartFrameLimits();
+    bgInfo.classList.remove('hidden');
+    uploadBg.classList.add('hidden');
+    bgFilename.textContent = label;
+    state.frameTransforms = state.frameTransforms.map(() => null);
+    state.trackOffset = null;
+    updateAdjustButton();
+    if (!state.playing && state.gifFrames.length > 0) {
+      compositeFrame(state.currentFrame);
+    }
+  }
+
   function updateAdjustButton() {
     const ready = Boolean(state.bgType) && state.gifFrames.length > 0;
     btnAdjustPos.classList.toggle('hidden', !ready);
@@ -1975,6 +1995,8 @@
     document.body.appendChild(ripple);
     ripple.addEventListener('animationend', () => ripple.remove());
   });
+
+  window.GifMaker = { setBackgroundFromCanvas };
 
   loadCatalog();
 })();

@@ -43,6 +43,10 @@
           <span class="file-name" id="bg-filename"></span>
           <button class="btn-remove" id="btn-remove-bg" title="Supprimer"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
+        <button id="btn-edit-text" class="btn-adjust-pos">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+          <span>&#x00c9;diter du texte</span>
+        </button>
         <button id="btn-adjust-pos" class="btn-adjust-pos hidden">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg>
           <span>Ajuster la position</span>
@@ -211,6 +215,62 @@
       </div>
     </div>
   </div>
+  <!-- TEXT EDITOR MODAL -->
+  <div id="text-modal" class="pe-modal hidden">
+    <div class="pe-wrap">
+      <div class="pe-topbar">
+        <div class="pe-title-group">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+          <h2>&#x00c9;diter du texte</h2>
+        </div>
+        <button id="te-btn-close" class="btn-pe-close" aria-label="Fermer"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="te-body">
+        <div class="te-templates" id="te-templates"></div>
+        <div class="te-main">
+          <div class="te-preview" id="te-stage">
+            <canvas id="te-preview"></canvas>
+            <div id="te-overlay">
+              <div id="te-box" class="hidden">
+                <div class="pe-border"></div>
+                <div class="pe-handle pe-nw" data-h="nw"></div><div class="pe-handle pe-ne" data-h="ne"></div>
+                <div class="pe-handle pe-sw" data-h="sw"></div><div class="pe-handle pe-se" data-h="se"></div>
+                <div class="pe-handle pe-n" data-h="n"></div><div class="pe-handle pe-s" data-h="s"></div>
+                <div class="pe-handle pe-w" data-h="w"></div><div class="pe-handle pe-e" data-h="e"></div>
+                <div class="pe-rotate-arm"><div class="pe-rotate-handle" id="te-rotate-handle"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="te-editor">
+            <textarea id="te-text" class="te-textarea" placeholder="Votre texte..." spellcheck="false"></textarea>
+            <div class="te-toolbar">
+              <label class="te-color-label" for="te-color">Couleur du texte</label>
+              <input type="color" id="te-color" class="te-color" value="#111111">
+            </div>
+          </div>
+          <div class="te-font-picker" id="te-font-picker">
+            <button type="button" id="te-font-trigger" class="te-font-trigger"><span id="te-font-name">Police</span><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="5" cy="5" r="1.8"/><circle cx="12" cy="5" r="1.8"/><circle cx="19" cy="5" r="1.8"/><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/><circle cx="5" cy="19" r="1.8"/><circle cx="12" cy="19" r="1.8"/><circle cx="19" cy="19" r="1.8"/></svg></button>
+            <div id="te-font-menu" class="te-font-menu hidden"></div>
+          </div>
+          <div class="te-images">
+            <div class="te-images-head">
+              <span class="te-color-label">Images sur le texte</span>
+              <button type="button" id="te-add-image" class="btn-micro">+ Ajouter une image</button>
+              <input type="file" id="te-image-input" accept="image/*" multiple hidden>
+            </div>
+            <div class="te-image-list" id="te-image-list"><span class="te-hint">Aucune image. Cliquez sur une image dans l'aper&#x00e7;u pour la d&#x00e9;placer, la redimensionner ou la faire pivoter.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="pe-footer">
+        <span class="pe-status">Le texte remplace l'arri&#x00e8;re-plan et s'affiche sur le fond vert du GIF</span>
+        <div class="pe-footer-actions">
+          <button id="te-btn-cancel" class="btn-pe-ghost">Annuler</button>
+          <button id="te-btn-apply" class="btn-pe-accent"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Utiliser ce texte</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <!-- LOADING MODAL -->
   <div id="loading-modal" class="modal hidden" role="status" aria-live="polite">
     <div class="modal-backdrop"></div>
@@ -241,5 +301,6 @@
   <script src="lib/gifuct-js.min.js"></script>
   <script src="lib/gif.js"></script>
   <script src="app.js"></script>
+  <script src="text-editor.js"></script>
 </body>
 </html>
