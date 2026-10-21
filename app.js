@@ -425,6 +425,16 @@
     }
   }
 
+  // Typical size (px, in GIF space) of the green area, from the tracking data
+  function getGreenSize() {
+    const sizes = (state.trackingData || []).filter(Boolean);
+    if (sizes.length === 0 || state.gifWidth === 0) return null;
+    const median = (arr) => arr.slice().sort((x, y) => x - y)[Math.floor(arr.length / 2)];
+    const w = median(sizes.map((t) => (t.isFullScreen ? state.gifWidth : t.w)));
+    const h = median(sizes.map((t) => (t.isFullScreen ? state.gifHeight : t.h)));
+    return w > 0 && h > 0 ? { w, h } : null;
+  }
+
   function updateAdjustButton() {
     const ready = Boolean(state.bgType) && state.gifFrames.length > 0;
     btnAdjustPos.classList.toggle('hidden', !ready);
@@ -1996,7 +2006,7 @@
     ripple.addEventListener('animationend', () => ripple.remove());
   });
 
-  window.GifMaker = { setBackgroundFromCanvas };
+  window.GifMaker = { setBackgroundFromCanvas, getGreenSize };
 
   loadCatalog();
 })();

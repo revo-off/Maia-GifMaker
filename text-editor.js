@@ -123,17 +123,30 @@
     return { size, lines, lineHeight };
   }
 
+  // Logical canvas = the green area of the GIF (same aspect ratio), template width as reference
+  function canvasSize(tpl) {
+    const green = window.GifMaker.getGreenSize();
+    const aspect = green ? green.w / green.h : tpl.width / tpl.height;
+    return { W: tpl.width, H: Math.round(tpl.width / aspect) };
+  }
+
   function renderTemplate(tpl, canvas, scale) {
-    canvas.width = Math.round(tpl.width * scale);
-    canvas.height = Math.round(tpl.height * scale);
+    const { W, H } = canvasSize(tpl);
+    canvas.width = Math.round(W * scale);
+    canvas.height = Math.round(H * scale);
     const c = canvas.getContext('2d');
     c.setTransform(scale, 0, 0, scale, 0, 0);
-    c.clearRect(0, 0, tpl.width, tpl.height);
+    c.clearRect(0, 0, W, H);
     if (tpl.background) { // null = transparent
       c.fillStyle = tpl.background;
-      c.fillRect(0, 0, tpl.width, tpl.height);
+      c.fillRect(0, 0, W, H);
     }
 
+    // The template design is fitted (contain) and centered in the canvas
+    const fit = Math.min(W / tpl.width, H / tpl.height);
+    c.save();
+    c.translate((W - tpl.width * fit) / 2, (H - tpl.height * fit) / 2);
+    c.scale(fit, fit);
     tpl.layers.forEach((layer) => {
       c.save();
       if (layer.type === 'text') {
@@ -178,6 +191,7 @@
       }
       c.restore();
     });
+    c.restore();
 
     doc.images.forEach((im) => {
       c.save();
@@ -199,6 +213,7 @@
       const thumb = btn.querySelector('canvas');
       const full = document.createElement('canvas');
       renderTemplate(tpl, full, 0.5);
+      thumb.height = Math.round(thumb.width * full.height / full.width);
       const c = thumb.getContext('2d');
       c.clearRect(0, 0, thumb.width, thumb.height);
       c.imageSmoothingQuality = 'high';
@@ -288,7 +303,18 @@
     fontsReady.then(() => refresh());
   }
 
+  function syncCanvasHeight() {
+    const { H } = canvasSize(currentTemplate());
+    if (doc.lastH && doc.lastH !== H) {
+      doc.images.forEach((im) => {
+        im.cy *= H / doc.lastH;
+      });
+    }
+    doc.lastH = H;
+  }
+
   async function open() {
+    syncCanvasHeight();
     modal.classList.remove('hidden');
     textArea.value = doc.text;
     syncToolbar();
@@ -349,7 +375,7 @@
     if (!tpl) return;
     const stage = $('#te-stage').getBoundingClientRect();
     const rect = previewCanvas.getBoundingClientRect();
-    scale = rect.width / tpl.width || 1;
+    scale = rect.width / canvasSize(tpl).W || 1;
     overlay.style.left = (rect.left - stage.left) + 'px';
     overlay.style.top = (rect.top - stage.top) + 'px';
     overlay.style.width = rect.width + 'px';
@@ -417,13 +443,14 @@
     img.onload = () => {
       const tpl = currentTemplate();
       const ratio = img.naturalWidth / img.naturalHeight;
-      let w = Math.min(img.naturalWidth, tpl.width * 0.35);
+      const { W, H } = canvasSize(tpl);
+      let w = Math.min(img.naturalWidth, W * 0.35);
       let h = w / ratio;
-      if (h > tpl.height * 0.5) {
-        h = tpl.height * 0.5;
+      if (h > H * 0.5) {
+        h = H * 0.5;
         w = h * ratio;
       }
-      const im = { id: ++imageSeq, img, cx: tpl.width / 2, cy: tpl.height / 2, w, h, rot: 0 };
+      const im = { id: ++imageSeq, img, cx: W / 2, cy: H / 2, w, h, rot: 0 };
       doc.images.push(im);
       selectImage(im.id);
       refresh();
