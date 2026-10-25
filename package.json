@@ -1,0 +1,9 @@
+{
+  "name": "maia-gifmaker",
+  "private": true,
+  "description": "GIF maker: green-screen tracking, text editor, GIF export",
+  "scripts": {
+    "check": "node tools/check.js",
+    "catalog": "node tools/build-catalog.js"
+  }
+}

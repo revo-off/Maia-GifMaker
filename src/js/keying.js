@@ -454,7 +454,7 @@
     return out;
   }
 
-  window.Keying = {
+  const api = {
     DEFAULT_KEY,
     DEFAULT_TOLERANCE,
     makeKeyer,
@@ -463,4 +463,8 @@
     softenAlpha,
     computeTracking,
   };
+
+  // Browser: window.Keying. Node (tools/check.js): module.exports
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else window.Keying = api;
 })();

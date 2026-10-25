@@ -4,13 +4,21 @@
     "name": "gangSignMaia",
     "file": "gsgangSignMaia.gif",
     "thumbnail": "gsgangSignMaia.gif",
-    "transparent": true
+    "transparent": true,
+    "frames": 89,
+    "durationMs": 4450,
+    "width": 200,
+    "height": 200
   },
   {
     "id": "gsreveMaia",
     "name": "reveMaia",
     "file": "gsreveMaia.gif",
     "thumbnail": "gsreveMaia.gif",
-    "transparent": false
+    "transparent": false,
+    "frames": 181,
+    "durationMs": 10500,
+    "width": 200,
+    "height": 200
   }
 ]
