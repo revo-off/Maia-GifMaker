@@ -31,6 +31,7 @@
     frameTransforms: [],
     // trackMode: edits are a global offset on top of the tracking; otherwise per-frame absolute transforms
     trackMode: true,
+    autoKeyPending: true,
     trackOffset: null, // { dx, dy, sw, sh, rot } or null
     frameDisabled: [],
     frameSrc: [],
@@ -55,6 +56,7 @@
   const bgFilename = $('#bg-filename');
 
   const ctrlTolerance = $('#ctrl-tolerance');
+  const ctrlSoften = $('#ctrl-soften');
   const ctrlChromaColor = $('#ctrl-chromacolor');
   const ctrlSpeed = $('#ctrl-speed');
   const ctrlBgSpeed = $('#ctrl-bg-speed');
@@ -121,14 +123,6 @@
 
   function hideLoading() {
     loadingModal.classList.add('hidden');
-  }
-
-  function colorDistance(r1, g1, b1, r2, g2, b2) {
-    return Math.sqrt(
-      (r1 - r2) ** 2 +
-      (g1 - g2) ** 2 +
-      (b1 - b2) ** 2
-    );
   }
 
   async function decodeGif(arrayBuffer) {
@@ -307,6 +301,7 @@
     if (prev) prev.classList.remove('selected');
 
     if (state.selectedGifId !== entry.id) {
+      state.autoKeyPending = true;
       state.gsTrackingData = null;
       state.trackingData = [];
       state.keyedFrames = [];
@@ -441,139 +436,7 @@
   }
 
   function computeTrackingData(frames, chromaColor, tolerance) {
-    if (!frames || frames.length === 0) return [];
-
-    const w = frames[0].width;
-    const h = frames[0].height;
-    const rawBoxes = [];
-    for (let f = 0; f < frames.length; f++) {
-      const frame = frames[f];
-      const data = frame.data;
-
-      let count = 0;
-      let sumX = 0, sumY = 0;
-      let minX = w, maxX = -1, minY = h, maxY = -1;
-      const pts = [];
-
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          const idx = (y * w + x) * 4;
-          const a = data[idx + 3];
-          if (a < 50) continue;
-
-          const r = data[idx];
-          const g = data[idx + 1];
-          const b = data[idx + 2];
-          const dist = colorDistance(r, g, b, chromaColor.r, chromaColor.g, chromaColor.b);
-
-          if (dist < tolerance) {
-            count++;
-            sumX += x;
-            sumY += y;
-            if (x < minX) minX = x;
-            if (x > maxX) maxX = x;
-            if (y < minY) minY = y;
-            if (y > maxY) maxY = y;
-            pts.push(x, y);
-          }
-        }
-      }
-
-      if (count < 25) {
-        rawBoxes.push(null);
-      } else {
-        let cx = sumX / count;
-        let cy = sumY / count;
-        let boxW = maxX - minX + 1;
-        let boxH = maxY - minY + 1;
-
-        let m20 = 0, m02 = 0, m11 = 0;
-        for (let p = 0; p < pts.length; p += 2) {
-          const dx = pts[p] - cx;
-          const dy = pts[p + 1] - cy;
-          m20 += dx * dx;
-          m02 += dy * dy;
-          m11 += dx * dy;
-        }
-        let angle = 0.5 * Math.atan2(2 * m11, m20 - m02);
-
-        const pct = count / (w * h);
-        const fullScreenT = Math.max(0, Math.min(1, (pct - 0.25) / 0.35));
-        if (fullScreenT > 0) {
-          angle = angle * (1 - fullScreenT);
-          cx = cx * (1 - fullScreenT) + (w / 2) * fullScreenT;
-          cy = cy * (1 - fullScreenT) + (h / 2) * fullScreenT;
-          boxW = boxW * (1 - fullScreenT) + w * fullScreenT;
-          boxH = boxH * (1 - fullScreenT) + h * fullScreenT;
-        }
-
-        const isFullScreen = pct >= 0.60 || (boxW >= w * 0.90 && boxH >= h * 0.80);
-        if (isFullScreen) {
-          boxW = w;
-          boxH = h;
-          cx = w / 2;
-          cy = h / 2;
-          angle = 0;
-        }
-
-        rawBoxes.push({
-          count,
-          pct,
-          minX,
-          maxX,
-          minY,
-          maxY,
-          w: boxW,
-          h: boxH,
-          cx,
-          cy,
-          angle,
-          isFullScreen,
-        });
-      }
-    }
-
-    const smoothed = [];
-    let prev = null;
-    for (let i = 0; i < rawBoxes.length; i++) {
-      const cur = rawBoxes[i];
-      if (!cur) {
-        smoothed.push(null);
-        prev = null;
-        continue;
-      }
-      if (cur.isFullScreen) {
-        const fullItem = { ...cur, cx: w / 2, cy: h / 2, w: w, h: h, angle: 0 };
-        smoothed.push(fullItem);
-        prev = fullItem;
-        continue;
-      }
-      if (!prev) {
-        smoothed.push({ ...cur });
-        prev = cur;
-        continue;
-      }
-
-      const weight = Math.min(1, cur.count / 800);
-      const angle = prev.angle + weight * (cur.angle - prev.angle);
-      const cx = prev.cx * 0.2 + cur.cx * 0.8;
-      const cy = prev.cy * 0.2 + cur.cy * 0.8;
-      const boxW = prev.w * 0.2 + cur.w * 0.8;
-      const boxH = prev.h * 0.2 + cur.h * 0.8;
-
-      const item = {
-        ...cur,
-        cx,
-        cy,
-        w: boxW,
-        h: boxH,
-        angle,
-      };
-      smoothed.push(item);
-      prev = item;
-    }
-
-    return smoothed;
+    return Keying.computeTracking(frames, Keying.makeKeyer(chromaColor, tolerance));
   }
 
   function mapGsTrackingToFrames(gsTrack, frameSrc, srcCount) {
@@ -588,12 +451,36 @@
     return res;
   }
 
+  function rgbToHex({ r, g, b }) {
+    return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
+  }
+
+  // Key colour + tolerance of a GIF: catalog overrides first, then detected from the frames
+  function autoConfigureKey(frames) {
+    const entry = state.selectedEntry || {};
+    let color = entry.chroma ? hexToRgb(entry.chroma) : null;
+    let tolerance = entry.tolerance ? Number(entry.tolerance) : null;
+    if (!color || !tolerance) {
+      const detected = Keying.detectKey(frames);
+      if (detected) {
+        color = color || detected.color;
+        tolerance = tolerance || detected.tolerance;
+      }
+    }
+    color = color || Keying.DEFAULT_KEY;
+    tolerance = tolerance || Keying.DEFAULT_TOLERANCE;
+
+    ctrlChromaColor.value = rgbToHex(color);
+    $('#val-chromacolor').textContent = ctrlChromaColor.value;
+    ctrlTolerance.value = tolerance;
+    $('#val-tolerance').textContent = tolerance;
+    state.autoKeyPending = false;
+  }
+
   async function updateTracking(force = false) {
     if (state.gifFrames.length === 0) return;
     state.keyedFrames = [];
     if (force) state.gsTrackingData = null;
-    const tolerance = parseFloat(ctrlTolerance.value);
-    const chromaColor = hexToRgb(ctrlChromaColor.value);
 
     if (state.transparentBackground) {
       if (!state.gsTrackingData || state.gsTrackingData.length === 0) {
@@ -605,7 +492,8 @@
             if (res.ok) {
               const buf = await res.arrayBuffer();
               const { frames } = await decodeGif(buf);
-              state.gsTrackingData = computeTrackingData(frames, chromaColor, tolerance);
+              if (state.autoKeyPending) autoConfigureKey(frames);
+              state.gsTrackingData = computeTrackingData(frames, hexToRgb(ctrlChromaColor.value), parseFloat(ctrlTolerance.value));
             }
           } catch (e) {
             console.error('Failed to load GS tracking data:', e);
@@ -614,7 +502,8 @@
       }
       state.trackingData = mapGsTrackingToFrames(state.gsTrackingData, state.frameSrc, state.srcCount);
     } else {
-      const tracked = computeTrackingData(state.gifFrames, chromaColor, tolerance);
+      if (state.autoKeyPending) autoConfigureKey(state.gifFrames);
+      const tracked = computeTrackingData(state.gifFrames, hexToRgb(ctrlChromaColor.value), parseFloat(ctrlTolerance.value));
       // Only an unedited frame list can serve as reference for the transparent variant
       const unedited = state.frameSrc.length === state.srcCount && state.frameSrc.every((s, k) => s === k);
       state.gsTrackingData = unedited ? tracked : null;
@@ -793,8 +682,8 @@
     const frame = state.gifFrames[frameIndex];
     const w = state.gifWidth;
     const h = state.gifHeight;
-    const tolerance = parseFloat(ctrlTolerance.value);
-    const chromaColor = hexToRgb(ctrlChromaColor.value);
+    const keyer = Keying.makeKeyer(hexToRgb(ctrlChromaColor.value), parseFloat(ctrlTolerance.value));
+    keyer.soften = parseFloat(ctrlSoften.value) || 0;
 
     const kCanvas = document.createElement('canvas');
     kCanvas.width = w;
@@ -803,23 +692,11 @@
     kCtx.putImageData(frame, 0, 0);
 
     const frameData = kCtx.getImageData(0, 0, w, h);
-    const data = frameData.data;
-
-    for (let i = 0; i < data.length; i += 4) {
-      const a = data[i + 3];
-      if (a === 0) continue;
-
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-      const dist = colorDistance(r, g, b, chromaColor.r, chromaColor.g, chromaColor.b);
-
-      if (dist < tolerance) {
-        data[i + 3] = 0;
-      } else if (dist < tolerance * 1.4) {
-        const blend = (dist - tolerance) / (tolerance * 0.4);
-        data[i + 3] = Math.round(a * Math.min(1, blend));
-      }
+    if (state.transparentBackground) {
+      // Already transparent GIF: nothing to key, only feather the edge
+      Keying.softenAlpha(frameData, keyer.soften);
+    } else {
+      Keying.applyKey(frameData, keyer);
     }
 
     kCtx.putImageData(frameData, 0, 0);
@@ -837,10 +714,7 @@
     targetCtx.clearRect(0, 0, w, h);
 
     if (state.transparentBackground) {
-      const scratchCtx = scratch.getContext('2d', { willReadFrequently: true });
-      scratchCtx.clearRect(0, 0, w, h);
-      scratchCtx.putImageData(state.gifFrames[frameIndex], 0, 0);
-      targetCtx.drawImage(scratch, 0, 0);
+      targetCtx.drawImage(getKeyedFrameCanvas(frameIndex), 0, 0);
       drawBackground(targetCtx, w, h, frameIndex, isExport, ftOverride);
     } else {
       drawBackground(targetCtx, w, h, frameIndex, isExport, ftOverride);
@@ -913,8 +787,6 @@
       iconPause.classList.add('hidden');
     }
   }
-
-  const EXPORT_TRANSPARENT_KEY = 0xFE01FD;
 
   function setExportIcon(done) {
     if (!exportModalIcon) return;
@@ -1018,31 +890,23 @@
       return;
     }
 
-    // Binary transparency: every non-opaque pixel gets the reserved key colour
-    if (hasAlpha) {
-      const kr = (EXPORT_TRANSPARENT_KEY >> 16) & 255;
-      const kg = (EXPORT_TRANSPARENT_KEY >> 8) & 255;
-      const kb = EXPORT_TRANSPARENT_KEY & 255;
-      for (const imageData of rendered) {
-        const d = imageData.data;
-        for (let p = 0; p < d.length; p += 4) {
-          if (d[p + 3] < 128) {
-            d[p] = kr; d[p + 1] = kg; d[p + 2] = kb;
-          }
-          d[p + 3] = 255;
-        }
-      }
-    }
+    // One palette for the whole animation (no colour flicker) + stable ordered dither.
+    // Transparent pixels get a reserved colour that no real pixel can be mapped to.
+    modalSubtitle.textContent = 'Palette de couleurs...';
+    await new Promise((r) => setTimeout(r, 0));
+    const pal = Palette.build(rendered, hasAlpha);
+    rendered.forEach((imageData) => Palette.quantize(imageData, pal));
 
     modalSubtitle.textContent = 'Encodage du GIF (qualité maximale)...';
 
     const gif = new GIF({
       workers: Math.min(8, Math.max(2, navigator.hardwareConcurrency || 2)),
       quality: 1,
-      dither: 'FloydSteinberg-serpentine',
+      dither: false,
+      globalPalette: pal.palette,
       width: w,
       height: h,
-      transparent: hasAlpha ? EXPORT_TRANSPARENT_KEY : null,
+      transparent: hasAlpha ? (pal.key[0] << 16) | (pal.key[1] << 8) | pal.key[2] : null,
       workerScript: 'lib/gif.worker.js',
     });
 
@@ -1156,6 +1020,7 @@
 
   const controlMappings = [
     { ctrl: ctrlTolerance, valId: 'val-tolerance', format: (v) => v },
+    { ctrl: ctrlSoften, valId: 'val-soften', format: (v) => v + ' px' },
     { ctrl: ctrlSpeed, valId: 'val-speed', format: (v) => parseFloat(v).toFixed(1) + 'x' },
     { ctrl: ctrlBgSpeed, valId: 'val-bg-speed', format: (v) => parseFloat(v).toFixed(1) + 'x' },
   ];
@@ -1163,6 +1028,9 @@
   controlMappings.forEach(({ ctrl, valId, format }) => {
     ctrl.addEventListener('input', async () => {
       $(`#${valId}`).textContent = format(ctrl.value);
+      if (ctrl === ctrlSoften) {
+        state.keyedFrames = [];
+      }
       if (ctrl === ctrlTolerance) {
         await updateTracking(true);
       }

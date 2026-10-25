@@ -1,5 +1,16 @@
 [
   {
+    "id": "free",
+    "name": "Texte libre",
+    "free": true,
+    "width": 1000,
+    "height": 500,
+    "background": null,
+    "defaultText": "texte",
+    "defaultFont": "yellowtail",
+    "layers": []
+  },
+  {
     "id": "t1",
     "name": "Template 1",
     "width": 1000,

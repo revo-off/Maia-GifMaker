@@ -56,11 +56,15 @@
         <h2 class="section-title"><span class="step-badge">3</span>Ajustements</h2>
         <div class="controls-grid">
           <div class="control-group">
-            <label class="control-label"><span>Tol&#x00e9;rance Chroma</span><span class="control-value" id="val-tolerance">100</span></label>
-            <input type="range" id="ctrl-tolerance" min="10" max="200" value="100" class="slider">
+            <label class="control-label"><span>Tol&#x00e9;rance Chroma</span><span class="control-value" id="val-tolerance">45</span></label>
+            <input type="range" id="ctrl-tolerance" min="5" max="100" value="45" class="slider">
           </div>
           <div class="control-group">
             <label class="control-label"><span>Couleur cl&#x00e9;</span><div class="color-picker-wrap"><input type="color" id="ctrl-chromacolor" value="#00ff00" class="color-input"><span class="control-value" id="val-chromacolor">#00ff00</span></div></label>
+          </div>
+          <div class="control-group">
+            <label class="control-label"><span>Adoucir les bords</span><span class="control-value" id="val-soften">1 px</span></label>
+            <input type="range" id="ctrl-soften" min="0" max="8" value="1" step="1" class="slider">
           </div>
           <div class="control-divider"></div>
           <div class="tracking-badge"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M3 12h3M18 12h3M12 3v3M12 18v3"/></svg><span>Suivi &amp; &#x00e9;chelle automatiques</span></div>
@@ -254,11 +258,11 @@
           </div>
           <div class="te-images">
             <div class="te-images-head">
-              <span class="te-color-label">Images sur le texte</span>
-              <button type="button" id="te-add-image" class="btn-micro">+ Ajouter une image</button>
+              <span class="te-color-label">Textes &amp; images</span>
+              <span class="te-head-actions"><button type="button" id="te-add-text" class="btn-micro hidden">+ Ajouter un texte</button><button type="button" id="te-add-image" class="btn-micro">+ Ajouter une image</button></span>
               <input type="file" id="te-image-input" accept="image/*" multiple hidden>
             </div>
-            <div class="te-image-list" id="te-image-list"><span class="te-hint">Aucune image. Cliquez sur une image dans l'aper&#x00e7;u pour la d&#x00e9;placer, la redimensionner ou la faire pivoter.</span></div>
+            <div class="te-image-list" id="te-image-list"><span class="te-hint">Aucun &#x00e9;l&#x00e9;ment. Cliquez sur un texte ou une image dans l'aper&#x00e7;u pour la d&#x00e9;placer, la redimensionner ou la faire pivoter.</span></div>
           </div>
         </div>
       </div>
@@ -300,6 +304,8 @@
   </div>
   <script src="lib/gifuct-js.min.js"></script>
   <script src="lib/gif.js"></script>
+  <script src="keying.js"></script>
+  <script src="palette.js"></script>
   <script src="app.js"></script>
   <script src="text-editor.js"></script>
 </body>

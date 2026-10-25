@@ -5,5 +5,12 @@
     "file": "gsgangSignMaia.gif",
     "thumbnail": "gsgangSignMaia.gif",
     "transparent": true
+  },
+  {
+    "id": "gsreveMaia",
+    "name": "reveMaia",
+    "file": "gsreveMaia.gif",
+    "thumbnail": "gsreveMaia.gif",
+    "transparent": false
   }
 ]

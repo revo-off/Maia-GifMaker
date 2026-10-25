@@ -110,16 +110,23 @@
     const maxSize = layer.maxSize || 200;
     const minSize = layer.minSize || 20;
     const lineHeight = layer.lineHeight || 1.1;
-    let size = maxSize;
-    let lines = [];
-    for (; size >= minSize; size -= 2) {
+
+    const layout = (size) => {
       c.font = `${weight} ${size}px ${family}`;
-      lines = wrapLines(c, text, layer.w);
+      const lines = wrapLines(c, text, layer.w);
       const widest = Math.max(...lines.map((l) => c.measureText(l).width), 0);
-      if (lines.length * size * lineHeight <= layer.h && widest <= layer.w) break;
+      return { lines, ok: lines.length * size * lineHeight <= layer.h && widest <= layer.w };
+    };
+
+    let lo = minSize;
+    let hi = maxSize;
+    while (hi - lo > 1) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (layout(mid).ok) lo = mid;
+      else hi = mid - 1;
     }
-    size = Math.max(size, minSize);
-    c.font = `${weight} ${size}px ${family}`;
+    const size = layout(hi).ok ? hi : lo;
+    const { lines } = layout(size);
     return { size, lines, lineHeight };
   }
 
@@ -193,13 +200,43 @@
     });
     c.restore();
 
+    let hasText = false;
     doc.images.forEach((im) => {
       c.save();
       c.imageSmoothingQuality = 'high';
       c.translate(im.cx, im.cy);
       c.rotate(im.rot);
-      c.drawImage(im.img, -im.w / 2, -im.h / 2, im.w, im.h);
+      if (im.kind === 'text') {
+        if (tpl.free) {
+          hasText = hasText || im.text.trim() !== '';
+          drawTextItem(c, im);
+        }
+      } else {
+        c.drawImage(im.img, -im.w / 2, -im.h / 2, im.w, im.h);
+      }
       c.restore();
+    });
+
+    // Placeholder in the template list while the free template is still empty
+    if (tpl.free && !hasText && scale < 1) {
+      c.fillStyle = '#9b486d';
+      c.font = `${Math.round(H * 0.45)}px ${cssFamily(doc.fontId || tpl.defaultFont)}`;
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText('Aa', W / 2, H / 2);
+    }
+  }
+
+  // Free text: fitted in its box (centered on the origin of the current transform)
+  function drawTextItem(c, im) {
+    const family = cssFamily(im.fontId);
+    const { size, lines, lineHeight } = fitText(c, { w: im.w, h: im.h, maxSize: 600, minSize: 8, lineHeight: 1.05 }, im.text, family, 400);
+    const blockH = lines.length * size * lineHeight;
+    c.fillStyle = im.color;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    lines.forEach((line, i) => {
+      c.fillText(line, 0, -blockH / 2 + (i + 0.5) * size * lineHeight);
     });
   }
 
@@ -232,9 +269,20 @@
     });
   }
 
+  // The text being edited: the selected free text, otherwise the template's own text
+  function targetText() {
+    const it = selectedImage();
+    return it && it.kind === 'text' && currentTemplate().free ? it : null;
+  }
+
   function syncToolbar() {
-    colorInput.value = doc.color;
-    const f = fontById(doc.fontId);
+    const target = targetText();
+    const isFree = Boolean(currentTemplate() && currentTemplate().free);
+    colorInput.value = target ? target.color : doc.color;
+    if (document.activeElement !== textArea) textArea.value = target ? target.text : doc.text;
+    textArea.disabled = isFree && !target;
+    $('#te-add-text').classList.toggle('hidden', !isFree);
+    const f = fontById(target ? target.fontId : doc.fontId);
     fontName.textContent = f ? f.name : 'Police';
     fontName.style.fontFamily = f ? cssFamily(f.id) : '';
     templatesEl.querySelectorAll('.te-template').forEach((b) => {
@@ -257,8 +305,13 @@
       btn.append(thumb, label);
       btn.addEventListener('click', () => {
         doc.templateId = tpl.id;
+        const sel = selectedImage();
+        if (sel && sel.kind === 'text' && !tpl.free) doc.sel = null;
+        if (tpl.free && !doc.images.some((im) => im.kind === 'text')) addTextItem();
+        renderImageList();
+        layoutBox();
         syncToolbar();
-        refresh(false);
+        refresh();
       });
       templatesEl.appendChild(btn);
     });
@@ -273,7 +326,9 @@
       item.textContent = f.name;
       item.style.fontFamily = cssFamily(f.id);
       item.addEventListener('click', () => {
-        doc.fontId = f.id;
+        const target = targetText();
+        if (target) target.fontId = f.id;
+        else doc.fontId = f.id;
         fontMenu.classList.add('hidden');
         syncToolbar();
         refresh();
@@ -297,6 +352,7 @@
     doc.fontId = templates[0].defaultFont || (fonts[0] && fonts[0].id);
     textArea.value = doc.text;
     buildTemplates();
+    if (currentTemplate().free) addTextItem();
     buildFontMenu();
     syncToolbar();
     fontsReady = loadFonts();
@@ -331,17 +387,27 @@
   function apply() {
     const out = document.createElement('canvas');
     renderTemplate(currentTemplate(), out, RENDER_SCALE);
-    const preview = doc.text.replace(/\s+/g, ' ').trim().slice(0, 24);
+    const freeText = currentTemplate().free ? doc.images.filter((im) => im.kind === 'text').map((im) => im.text).join(' ') : doc.text;
+    const preview = freeText.replace(/\s+/g, ' ').trim().slice(0, 24);
     window.GifMaker.setBackgroundFromCanvas(out, `Texte : ${preview || '(vide)'}`);
     close();
   }
 
   textArea.addEventListener('input', () => {
-    doc.text = textArea.value;
+    const target = targetText();
+    if (target) {
+      target.text = textArea.value;
+      renderImageList();
+    } else {
+      doc.text = textArea.value;
+    }
     refresh();
   });
   colorInput.addEventListener('input', () => {
-    doc.color = colorInput.value;
+    const target = targetText();
+    if (target) target.color = colorInput.value;
+    else doc.color = colorInput.value;
+    renderImageList();
     refresh();
   });
   fontTrigger.addEventListener('click', (e) => {
@@ -396,18 +462,28 @@
 
   function renderImageList() {
     imageList.innerHTML = '';
-    if (doc.images.length === 0) {
+    const visible = doc.images.filter((im) => im.kind !== 'text' || currentTemplate().free);
+    if (visible.length === 0) {
       const hint = document.createElement('span');
       hint.className = 'te-hint';
       hint.textContent = "Aucune image. Cliquez sur une image dans l'aperçu pour la déplacer, la redimensionner ou la faire pivoter.";
       imageList.appendChild(hint);
       return;
     }
-    doc.images.forEach((im) => {
+    visible.forEach((im) => {
       const chip = document.createElement('div');
       chip.className = 'te-chip' + (im.id === doc.sel ? ' active' : '');
-      const thumb = document.createElement('img');
-      thumb.src = im.img.src;
+      let thumb;
+      if (im.kind === 'text') {
+        thumb = document.createElement('span');
+        thumb.className = 'te-chip-text';
+        thumb.textContent = im.text.trim().slice(0, 6) || 'Aa';
+        thumb.style.fontFamily = cssFamily(im.fontId);
+        thumb.style.color = im.color;
+      } else {
+        thumb = document.createElement('img');
+        thumb.src = im.img.src;
+      }
       const remove = document.createElement('button');
       remove.type = 'button';
       remove.className = 'te-chip-remove';
@@ -427,6 +503,27 @@
     doc.sel = id;
     renderImageList();
     layoutBox();
+    syncToolbar();
+  }
+
+  function addTextItem() {
+    const { W, H } = canvasSize(currentTemplate());
+    const im = {
+      id: ++imageSeq,
+      kind: 'text',
+      text: doc.text || 'texte',
+      fontId: doc.fontId,
+      color: doc.color,
+      cx: W / 2,
+      cy: H / 2,
+      w: W * 0.7,
+      h: H * 0.4,
+      rot: 0,
+    };
+    doc.images.push(im);
+    selectImage(im.id);
+    refresh();
+    return im;
   }
 
   function removeImage(id) {
@@ -450,7 +547,7 @@
         h = H * 0.5;
         w = h * ratio;
       }
-      const im = { id: ++imageSeq, img, cx: W / 2, cy: H / 2, w, h, rot: 0 };
+      const im = { id: ++imageSeq, kind: 'image', img, cx: W / 2, cy: H / 2, w, h, rot: 0 };
       doc.images.push(im);
       selectImage(im.id);
       refresh();
@@ -462,6 +559,7 @@
   function hitTest(px, py) {
     for (let i = doc.images.length - 1; i >= 0; i--) {
       const im = doc.images[i];
+      if (im.kind === 'text' && !currentTemplate().free) continue;
       const dx = px - im.cx;
       const dy = py - im.cy;
       const cos = Math.cos(im.rot);
@@ -567,6 +665,13 @@
   });
 
   $('#te-add-image').addEventListener('click', () => imageInput.click());
+  $('#te-add-text').addEventListener('click', () => {
+    const item = addTextItem();
+    item.text = '';
+    textArea.value = '';
+    renderImageList();
+    textArea.focus();
+  });
   imageInput.addEventListener('change', () => {
     Array.from(imageInput.files).forEach(addImageFile);
     imageInput.value = '';
