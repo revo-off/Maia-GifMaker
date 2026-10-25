@@ -170,7 +170,8 @@
 
       const fullImageData = fullCtx.getImageData(0, 0, width, height);
       frames.push(fullImageData);
-      delays.push(frame.delay || 100);
+      // Same rule as browsers: 0 to 10 ms are played as 100 ms
+      delays.push(!frame.delay || frame.delay <= 10 ? 100 : frame.delay);
     }
 
     return { frames, delays, width, height };
@@ -524,21 +525,66 @@
     return (frameIndex - startIndex + total) % total;
   }
 
-  function bgVideoTime(relFrame) {
-    const video = state.bgImage;
-    const bgSpeed = parseFloat(ctrlBgSpeed.value) || 1.0;
+  // Time (ms) the background has been playing at the start of this frame, following the real
+  // delay of every main frame (disabled frames are not part of the output)
+  function bgElapsedMs(frameIndex) {
+    const rel = bgTimeline(frameIndex);
+    if (rel < 0) return -1;
+    const n = state.gifFrames.length || 1;
+    const startFrame = parseInt(ctrlBgStartFrame ? ctrlBgStartFrame.value : '1', 10) || 1;
+    const startIndex = Math.max(0, startFrame - 1);
     const mainSpeed = parseFloat(ctrlSpeed.value) || 1.0;
-    const secPerMainFrame = (1 / 24) / mainSpeed;
-    return ((relFrame * secPerMainFrame) * bgSpeed) % video.duration;
+    let ms = 0;
+    for (let k = 0; k < rel; k++) {
+      const idx = (startIndex + k) % n;
+      if (!state.frameDisabled[idx]) ms += (state.gifDelays[idx] || 100) / mainSpeed;
+    }
+    return ms + bgOffsetMs;
+  }
+
+  // Time already spent inside the current main frame: a long frame (e.g. a 3 s hold) must not
+  // freeze an animated background
+  let bgOffsetMs = 0;
+
+  function bgIsAnimated() {
+    return (state.bgType === 'video' && state.bgImage && state.bgImage.duration > 0)
+      || (state.bgType === 'gif' && state.bgGifFrames.length > 1);
+  }
+
+  // Output slices of one main frame: [{ offset, dur }] (a single slice unless the frame is long
+  // and the background animated)
+  function frameSlices(frameIndex, speed) {
+    const dur = (state.gifDelays[frameIndex] || 100) / speed;
+    if (!bgIsAnimated() || dur <= 120 || bgElapsedMs(frameIndex) < 0) return [{ offset: 0, dur }];
+    const count = Math.ceil(dur / 50);
+    return Array.from({ length: count }, (_, k) => ({ offset: (dur / count) * k, dur: dur / count }));
+  }
+
+  function bgVideoTime(elapsedMs) {
+    const bgSpeed = parseFloat(ctrlBgSpeed.value) || 1.0;
+    return ((elapsedMs / 1000) * bgSpeed) % state.bgImage.duration;
+  }
+
+  // Frame of the background GIF at `elapsedMs`, using its own per-frame delays
+  function bgGifFrameAt(elapsedMs) {
+    const delays = state.bgGifDelays;
+    const total = delays.reduce((a, b) => a + b, 0);
+    const bgSpeed = parseFloat(ctrlBgSpeed.value) || 1.0;
+    let t = total > 0 ? (elapsedMs * bgSpeed) % total : 0;
+    for (let i = 0; i < delays.length; i++) {
+      if (t < delays[i]) return i;
+      t -= delays[i];
+    }
+    return delays.length - 1;
   }
 
   // Seek the background video and wait until the frame is really decoded (export / editor)
   async function seekBgVideo(frameIndex) {
     if (state.bgType !== 'video' || !state.bgImage || !state.bgImage.duration) return;
-    const rel = bgTimeline(frameIndex);
-    if (rel < 0) return;
+    const elapsed = bgElapsedMs(frameIndex);
+    if (elapsed < 0) return;
     const video = state.bgImage;
-    const t = bgVideoTime(rel);
+    const t = bgVideoTime(elapsed);
     if (!video.seeking && Math.abs(video.currentTime - t) < 0.001) return;
     await new Promise((resolve) => {
       const done = () => {
@@ -554,8 +600,8 @@
 
   function resolveBackground(frameIndex, isExport) {
     if (!state.bgType) return null;
-    const rel = bgTimeline(frameIndex);
-    if (rel < 0) return null;
+    const elapsed = bgElapsedMs(frameIndex);
+    if (elapsed < 0) return null;
 
     if (state.bgType === 'image' && state.bgImage) {
       return {
@@ -567,15 +613,13 @@
 
     if (state.bgType === 'video' && state.bgImage) {
       if (!isExport && state.bgImage.duration) {
-        state.bgImage.currentTime = bgVideoTime(rel);
+        state.bgImage.currentTime = bgVideoTime(elapsed);
       }
       return { source: state.bgImage, bgW: state.bgImage.videoWidth, bgH: state.bgImage.videoHeight };
     }
 
     if (state.bgType === 'gif' && state.bgGifFrames.length > 0) {
-      const bgSpeed = parseFloat(ctrlBgSpeed.value) || 1.0;
-      const mainSpeed = parseFloat(ctrlSpeed.value) || 1.0;
-      const idx = Math.floor(rel * (bgSpeed / mainSpeed)) % state.bgGifFrames.length;
+      const idx = bgGifFrameAt(elapsed);
       if (bgCanvas.width !== state.bgGifWidth || bgCanvas.height !== state.bgGifHeight) {
         bgCanvas.width = state.bgGifWidth;
         bgCanvas.height = state.bgGifHeight;
@@ -767,8 +811,10 @@
       frameChanged = true;
     }
 
-    if (frameChanged || state.bgType === 'video') {
+    if (frameChanged || bgIsAnimated()) {
+      bgOffsetMs = frameChanged ? 0 : now - state.lastFrameTime;
       compositeFrame(state.currentFrame);
+      bgOffsetMs = 0;
       frameCounter.textContent = `${state.currentFrame + 1} / ${state.gifFrames.length}`;
       const progress = ((state.currentFrame + 1) / state.gifFrames.length) * 100;
       progressBar.style.width = progress + '%';
@@ -858,23 +904,27 @@
       modalSubtitle.textContent = `Rendu de la frame ${n + 1} / ${indices.length}`;
       setExportProgress(((n + 1) / indices.length) * 50);
 
-      await seekBgVideo(i);
-      paintFrame(renderCtx, renderTemp, i, true);
-      const imageData = renderCtx.getImageData(0, 0, w, h);
+      for (const slice of frameSlices(i, speed)) {
+        bgOffsetMs = slice.offset;
+        await seekBgVideo(i);
+        paintFrame(renderCtx, renderTemp, i, true);
+        const imageData = renderCtx.getImageData(0, 0, w, h);
 
-      if (!hasAlpha) {
-        const d = imageData.data;
-        for (let p = 3; p < d.length; p += 4) {
-          if (d[p] < 128) { hasAlpha = true; break; }
+        if (!hasAlpha) {
+          const d = imageData.data;
+          for (let p = 3; p < d.length; p += 4) {
+            if (d[p] < 128) { hasAlpha = true; break; }
+          }
         }
-      }
-      rendered.push(imageData);
+        rendered.push(imageData);
 
-      // GIF delays are stored in 1/100 s: spread the rounding error so total duration stays exact
-      const wanted = (state.gifDelays[i] || 100) / speed + carry;
-      const cs = Math.max(2, Math.round(wanted / 10));
-      carry = wanted - cs * 10;
-      delays.push(cs * 10);
+        // GIF delays are stored in 1/100 s: spread the rounding error so total duration stays exact
+        const wanted = slice.dur + carry;
+        const cs = Math.max(2, Math.round(wanted / 10));
+        carry = wanted - cs * 10;
+        delays.push(cs * 10);
+      }
+      bgOffsetMs = 0;
 
       await new Promise((r) => setTimeout(r, 0));
     }
@@ -930,7 +980,9 @@
       setExportIcon(true);
       modalTitle.textContent = 'Rendu terminé !';
       const sizeMB = (blob.size / (1024 * 1024)).toFixed(2);
-      modalSubtitle.textContent = `${indices.length} frames · ${sizeMB} Mo`;
+      const totalMs = delays.reduce((x, y) => x + y, 0);
+      const lastMs = delays[delays.length - 1];
+      modalSubtitle.textContent = `${rendered.length} frames · ${(totalMs / 1000).toFixed(2)} s (dernière frame : ${(lastMs / 1000).toFixed(2)} s) · ${sizeMB} Mo`;
       setExportProgress(100);
     });
 

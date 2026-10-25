@@ -245,8 +245,10 @@ function analyseGreenScreen(gifuct, entry, before) {
   if (before && before.frames && before.frames !== frames.length) {
     warn(`longueur modifiée depuis le dernier check : ${before.frames} → ${frames.length} frames (${fmtMs(before.durationMs)} → ${fmtMs(total)})`);
   }
-  const fast = delays.filter((d) => d < 20).length;
-  if (fast > 0) warn(`${fast} frame(s) avec un délai < 20 ms : les navigateurs les ralentissent à 100 ms`);
+  const fast = delays.filter((d) => d <= 10).length;
+  if (fast > 0) warn(`${fast} frame(s) avec un délai ≤ 10 ms : les navigateurs (et l'app) les jouent à 100 ms`);
+  const longest = Math.max(...delays);
+  if (longest >= 1000) info(`délai le plus long : ${longest} ms (frame ${delays.indexOf(longest) + 1}), pris en compte tel quel`);
   if (gif.bytes > 8 * 1048576) warn(`fichier lourd (${fmtMB(gif.bytes)}) : le chargement sera lent`);
   if (frames.length > 400) warn(`${frames.length} frames : l'export sera long`);
 
