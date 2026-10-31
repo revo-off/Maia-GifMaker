@@ -1,5 +1,17 @@
 [
   {
+    "id": "gsboule2feuMaia",
+    "name": "boule2feuMaia",
+    "file": "gsboule2feuMaia.gif",
+    "thumbnail": "gsboule2feuMaia.gif",
+    "stopFrame": 24,
+    "transparent": true,
+    "frames": 51,
+    "durationMs": 2130,
+    "width": 200,
+    "height": 200
+  },
+  {
     "id": "gsgangSignMaia",
     "name": "gangSignMaia",
     "file": "gsgangSignMaia.gif",

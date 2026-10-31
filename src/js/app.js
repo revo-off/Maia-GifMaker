@@ -678,7 +678,17 @@
   }
 
   // ftOverride: undefined = use the stored transform, null = force tracking, object = explicit transform
+  // catalog.json "stopFrame" (1-based): from this frame of the original GIF on, the screen is
+  // no longer tracked and nothing is inlaid
+  function overlayStopped(frameIndex) {
+    const stop = Number(state.selectedEntry && state.selectedEntry.stopFrame);
+    if (!stop) return false;
+    const src = state.frameSrc[frameIndex];
+    return (src === undefined ? frameIndex : src) + 1 >= stop;
+  }
+
   function drawBackground(targetCtx, w, h, frameIndex, isExport, ftOverride) {
+    if (overlayStopped(frameIndex)) return;
     const info = resolveBackground(frameIndex, isExport);
     if (!info || !info.bgW || !info.bgH) return;
 

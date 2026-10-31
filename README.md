@@ -15,7 +15,7 @@ vérifie les fichiers du projet et affiche un topo. Les aperçus visuels sont da
 ## Ajouter un GIF
 
 1. Déposer `gs<Nom>.gif` (fond vert) dans `gifs/`, et `<Nom>.gif` (écran transparent) si disponible.
-2. `npm run check`. Si besoin, forcer `"chroma"` / `"tolerance"` dans l'entrée de `gifs/catalog.json`.
+2. `npm run check`. Si besoin, forcer `"chroma"` / `"tolerance"` dans l'entrée de `gifs/catalog.json`. Option `"stopFrame": 24` : à partir de la frame 24 (numérotation de l'affichage, 1 = première) il n'y a plus de suivi ni d'image incrustée.
 
 ## Ajouter un template ou une police de texte
 
