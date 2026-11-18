@@ -44,7 +44,7 @@
   const state = {
     main: null, // { frames: canvas[], delays: ms[], w, h, name }
     effects: { hue: false, gray: false, invert: false, mirror: false, rage: false },
-    layers: [], // overlays: { id, name, frames, delays, total, cx, cy, w, h, rot, front }
+    layers: [], // overlays: { id, name, frames, delays, total, cx, cy, w, h, rot, fx }
     sel: null,
     playing: true,
     t: 0,
@@ -263,37 +263,41 @@
     c.restore();
   }
 
-  // Overlays behind, the (processed) imported file, overlays in front
+  // The imported file with the overlays that follow the effects, then the overlays whose effects are off on top
   function renderAt(c, t, T) {
     const m = state.main;
-    c.clearRect(0, 0, m.w, m.h);
-    state.layers.filter((l) => !l.front).forEach((l) => drawLayer(c, l, t));
-
     const frame = m.frames[mainIndexAt(t)];
-    if (anyEffect()) {
-      if (work.width !== m.w || work.height !== m.h) {
-        work.width = m.w;
-        work.height = m.h;
-      }
-      workCtx.clearRect(0, 0, m.w, m.h);
-      workCtx.drawImage(frame, 0, 0);
-      const id = workCtx.getImageData(0, 0, m.w, m.h);
-      applyEffects(id, t, T);
-      workCtx.putImageData(id, 0, 0);
-      if (state.effects.rage) {
-        // Zoomed out, shaken frame by frame; what the frame no longer covers stays transparent
-        const step = Math.floor(t / RAGE_STEP_MS);
-        const amp = RAGE_SHAKE * Math.min(m.w, m.h);
-        c.imageSmoothingQuality = 'high';
-        c.drawImage(work, (m.w * (1 - RAGE_ZOOM)) / 2 + jitter(step, 1) * amp, (m.h * (1 - RAGE_ZOOM)) / 2 + jitter(step, 2) * amp, m.w * RAGE_ZOOM, m.h * RAGE_ZOOM);
-      } else {
-        c.drawImage(work, 0, 0);
-      }
-    } else {
+    const affected = state.layers.filter((l) => l.fx);
+    const plain = state.layers.filter((l) => !l.fx);
+    c.clearRect(0, 0, m.w, m.h);
+
+    if (!anyEffect()) {
       c.drawImage(frame, 0, 0);
+      state.layers.forEach((l) => drawLayer(c, l, t));
+      return;
     }
 
-    state.layers.filter((l) => l.front).forEach((l) => drawLayer(c, l, t));
+    if (work.width !== m.w || work.height !== m.h) {
+      work.width = m.w;
+      work.height = m.h;
+    }
+    workCtx.clearRect(0, 0, m.w, m.h);
+    workCtx.drawImage(frame, 0, 0);
+    affected.forEach((l) => drawLayer(workCtx, l, t));
+    const id = workCtx.getImageData(0, 0, m.w, m.h);
+    applyEffects(id, t, T);
+    workCtx.putImageData(id, 0, 0);
+
+    if (state.effects.rage) {
+      // Zoomed out, shaken frame by frame; what the picture no longer covers stays transparent
+      const step = Math.floor(t / RAGE_STEP_MS);
+      const amp = RAGE_SHAKE * Math.min(m.w, m.h);
+      c.imageSmoothingQuality = 'high';
+      c.drawImage(work, (m.w * (1 - RAGE_ZOOM)) / 2 + jitter(step, 1) * amp, (m.h * (1 - RAGE_ZOOM)) / 2 + jitter(step, 2) * amp, m.w * RAGE_ZOOM, m.h * RAGE_ZOOM);
+    } else {
+      c.drawImage(work, 0, 0);
+    }
+    plain.forEach((l) => drawLayer(c, l, t));
   }
 
   // ---------- Preview loop ----------
@@ -441,7 +445,7 @@
       total: sum(res.delays),
       srcW: res.w,
       srcH: res.h,
-      front: true,
+      fx: true,
     };
     fitLayer(l);
     state.layers.push(l);
@@ -477,11 +481,11 @@
       const side = document.createElement('button');
       side.type = 'button';
       side.className = 'btn-micro';
-      side.textContent = l.front ? 'Devant' : 'Derrière';
-      side.title = "Placer l'overlay devant ou derrière le fichier importé";
+      side.textContent = l.fx ? 'Effets : on' : 'Effets : off';
+      side.title = "Appliquer ou non les effets à cet overlay";
       side.addEventListener('click', (e) => {
         e.stopPropagation();
-        l.front = !l.front;
+        l.fx = !l.fx;
         state.force = true;
         renderLayers();
       });
