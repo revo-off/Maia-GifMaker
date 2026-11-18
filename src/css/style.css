@@ -2685,7 +2685,7 @@ label,
 #fx-overlay { position: absolute; inset: 0; touch-action: none; cursor: default; }
 #fx-box { position: absolute; transform-origin: center center; cursor: move !important; touch-action: none; user-select: none; }
 
-.fx-effects { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-sm); z-index: 2; }
+.fx-effects { display: grid; grid-template-columns: repeat(4, max-content); justify-content: center; gap: var(--space-sm); z-index: 2; }
 
 .fx-chip {
   padding: 8px 18px;

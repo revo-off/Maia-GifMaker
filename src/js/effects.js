@@ -9,6 +9,10 @@
   const MAX_SIDE = 720; // longest side of the output
   const MIN_SIZE = 8;
   const STATIC_HUE_MS = 2400; // length of the colour loop on a still image
+  const STATIC_RAGE_MS = 800; // length of the shake loop on a still image
+  const RAGE_STEP_MS = 50; // the shake jumps every step, like the reference GIF
+  const RAGE_ZOOM = 0.94;
+  const RAGE_SHAKE = 0.03; // of the smallest side
   const SLICE_MS = 50; // a long frame is cut in steps of this size when something moves over it
 
   const upload = $('#fx-upload');
@@ -33,7 +37,7 @@
 
   const state = {
     main: null, // { frames: canvas[], delays: ms[], w, h, name }
-    effects: { hue: false, gray: false, invert: false, mirror: false },
+    effects: { hue: false, gray: false, invert: false, mirror: false, rage: false },
     layers: [], // overlays: { id, name, frames, delays, total, cx, cy, w, h, rot, front }
     sel: null,
     playing: true,
@@ -148,7 +152,8 @@
     if (!m) return 0;
     if (isAnimated(m)) return sum(m.delays);
     const overlayMs = Math.max(0, ...state.layers.map((l) => (l.frames.length > 1 ? l.total : 0)));
-    return state.effects.hue ? Math.max(STATIC_HUE_MS, overlayMs) : overlayMs;
+    const own = Math.max(state.effects.hue ? STATIC_HUE_MS : 0, state.effects.rage ? STATIC_RAGE_MS : 0);
+    return Math.max(own, overlayMs);
   }
 
   function indexAt(delays, t) {
@@ -172,7 +177,7 @@
   // ---------- Effects (pixel level, so they also work where canvas filters do not) ----------
 
   function applyEffects(imageData, t, T) {
-    const { hue, gray, invert, mirror } = state.effects;
+    const { hue, gray, invert, mirror, rage } = state.effects;
     const d = imageData.data;
     const w = imageData.width;
     const h = imageData.height;
@@ -199,7 +204,7 @@
       ];
     }
 
-    if (!m && !gray && !invert) return;
+    if (!m && !gray && !invert && !rage) return;
     for (let i = 0; i < d.length; i += 4) {
       let r = d[i];
       let g = d[i + 1];
@@ -220,6 +225,14 @@
         g = 255 - g;
         b = 255 - b;
       }
+      if (rage) {
+        // Vivid red: brightness drives the red channel, a little blue is kept for the magenta tones
+        const l = 0.299 * r + 0.587 * g + 0.114 * b;
+        const nr = l * 1.6 + 70;
+        r = nr > 255 ? 255 : nr;
+        g = l * 0.12;
+        b = b * 0.35;
+      }
       d[i] = r;
       d[i + 1] = g;
       d[i + 2] = b;
@@ -228,7 +241,13 @@
 
   function anyEffect() {
     const e = state.effects;
-    return e.hue || e.gray || e.invert || e.mirror;
+    return e.hue || e.gray || e.invert || e.mirror || e.rage;
+  }
+
+  // Deterministic jitter in [-1, 1] for a shake step
+  function jitter(step, salt) {
+    const x = Math.sin(step * 12.9898 + salt * 78.233) * 43758.5453;
+    return (x - Math.floor(x)) * 2 - 1;
   }
 
   function drawLayer(c, l, t) {
@@ -257,7 +276,15 @@
       const id = workCtx.getImageData(0, 0, m.w, m.h);
       applyEffects(id, t, T);
       workCtx.putImageData(id, 0, 0);
-      c.drawImage(work, 0, 0);
+      if (state.effects.rage) {
+        // Zoomed out, shaken frame by frame; what the frame no longer covers stays transparent
+        const step = Math.floor(t / RAGE_STEP_MS);
+        const amp = RAGE_SHAKE * Math.min(m.w, m.h);
+        c.imageSmoothingQuality = 'high';
+        c.drawImage(work, (m.w * (1 - RAGE_ZOOM)) / 2 + jitter(step, 1) * amp, (m.h * (1 - RAGE_ZOOM)) / 2 + jitter(step, 2) * amp, m.w * RAGE_ZOOM, m.h * RAGE_ZOOM);
+      } else {
+        c.drawImage(work, 0, 0);
+      }
     } else {
       c.drawImage(frame, 0, 0);
     }
@@ -270,6 +297,7 @@
   function frameKey(t) {
     const parts = [mainIndexAt(t), state.layers.map((l) => layerIndexAt(l, t)).join(',')];
     if (state.effects.hue) parts.push(Math.round(t / 33));
+    if (state.effects.rage) parts.push(Math.floor(t / RAGE_STEP_MS));
     return parts.join('|');
   }
 
@@ -655,7 +683,7 @@
       state.effects[k] = !state.effects[k];
       chip.classList.toggle('active', state.effects[k]);
       chip.setAttribute('aria-pressed', String(state.effects[k]));
-      if (k === 'hue' && !isAnimated(state.main)) state.t = 0;
+      if ((k === 'hue' || k === 'rage') && !isAnimated(state.main)) state.t = 0;
       state.force = true;
     });
   });
@@ -689,7 +717,7 @@
   // Output frames: { t, dur } — a long frame is cut in steps when something keeps moving over it
   function outputSteps(T) {
     const m = state.main;
-    const moving = state.effects.hue || state.layers.some((l) => l.frames.length > 1);
+    const moving = state.effects.hue || state.effects.rage || state.layers.some((l) => l.frames.length > 1);
     const steps = [];
     if (isAnimated(m)) {
       let t0 = 0;
