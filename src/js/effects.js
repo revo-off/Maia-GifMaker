@@ -6,12 +6,18 @@
 
   const $ = (s) => document.querySelector(s);
 
-  const MAX_SIDE = 720; // longest side of the output
+  // Output size of the imported file: square -> 200x200, otherwise fitted in 400x200 (never enlarged)
+  function mainSize(W, H) {
+    if (W === H) return [200, 200];
+    const k = Math.min(1, 400 / W, 200 / H);
+    return [Math.max(1, Math.round(W * k)), Math.max(1, Math.round(H * k))];
+  }
   const MIN_SIZE = 8;
   const STATIC_HUE_MS = 2400; // length of the colour loop on a still image
   const STATIC_RAGE_MS = 800; // length of the shake loop on a still image
   const RAGE_STEP_MS = 50; // the shake jumps every step, like the reference GIF
   const RAGE_ZOOM = 0.94;
+  const RAGE_KEEP = 0.25; // share of the original colours kept under the red (contrast)
   const RAGE_SHAKE = 0.03; // of the smallest side
   const SLICE_MS = 50; // a long frame is cut in steps of this size when something moves over it
 
@@ -66,14 +72,12 @@
   }
 
   // Every frame fully composited (disposal handled), with its delay in ms
-  function decodeGif(buffer, maxSide) {
+  function decodeGif(buffer, sizeFor) {
     const gif = gifuct.parseGIF(buffer);
     const raw = gifuct.decompressFrames(gif, true);
     const W = gif.lsd.width;
     const H = gif.lsd.height;
-    const k = maxSide ? Math.min(1, maxSide / Math.max(W, H)) : 1;
-    const ow = Math.max(1, Math.round(W * k));
-    const oh = Math.max(1, Math.round(H * k));
+    const [ow, oh] = sizeFor ? sizeFor(W, H) : [W, H];
 
     const full = toCanvas(W, H);
     const fc = full.getContext('2d', { willReadFrequently: true });
@@ -121,11 +125,11 @@
     });
   }
 
-  async function decodeFile(blob, maxSide) {
+  async function decodeFile(blob, sizeFor) {
     const isGif = blob.type === 'image/gif' || /\.gif$/i.test(blob.name || '');
     if (isGif) {
       try {
-        const res = decodeGif(await blob.arrayBuffer(), maxSide);
+        const res = decodeGif(await blob.arrayBuffer(), sizeFor);
         if (res.frames.length > 0) return res;
       } catch (e) {
         console.warn('GIF decode failed, falling back to a still image', e);
@@ -134,8 +138,8 @@
     const img = await loadImage(blob);
     const W = img.naturalWidth;
     const H = img.naturalHeight;
-    const k = maxSide ? Math.min(1, maxSide / Math.max(W, H)) : 1;
-    const c = toCanvas(Math.max(1, Math.round(W * k)), Math.max(1, Math.round(H * k)));
+    const [ow, oh] = sizeFor ? sizeFor(W, H) : [W, H];
+    const c = toCanvas(ow, oh);
     const cc = c.getContext('2d');
     cc.imageSmoothingQuality = 'high';
     cc.drawImage(img, 0, 0, c.width, c.height);
@@ -228,10 +232,10 @@
       if (rage) {
         // Vivid red: brightness drives the red channel, a little blue is kept for the magenta tones
         const l = 0.299 * r + 0.587 * g + 0.114 * b;
-        const nr = l * 1.6 + 70;
-        r = nr > 255 ? 255 : nr;
-        g = l * 0.12;
-        b = b * 0.35;
+        const nr = l * 1.5 + 40;
+        r = r * RAGE_KEEP + (nr > 255 ? 255 : nr) * (1 - RAGE_KEEP);
+        g = g * RAGE_KEEP + l * 0.1 * (1 - RAGE_KEEP);
+        b = b * RAGE_KEEP + b * 0.3 * (1 - RAGE_KEEP);
       }
       d[i] = r;
       d[i + 1] = g;
@@ -366,7 +370,7 @@
   async function loadMain(file) {
     uploadText.textContent = 'Chargement...';
     try {
-      const res = await decodeFile(file, MAX_SIDE);
+      const res = await decodeFile(file, mainSize);
       state.main = { ...res, name: file.name };
     } catch (e) {
       console.error(e);
@@ -424,7 +428,7 @@
       const resp = await fetch('overlay/' + entry.file);
       const blob = await resp.blob();
       blob.name = entry.file;
-      res = await decodeFile(blob, 0);
+      res = await decodeFile(blob, null);
     } catch (e) {
       console.error('Overlay load failed', e);
       return;
