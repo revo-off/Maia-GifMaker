@@ -18,6 +18,10 @@
     <div class="liquid-blob blob-4"></div><div class="liquid-blob blob-5"></div><div class="liquid-blob blob-6"></div>
     <div class="sparkle sp-1">&#x2726;</div><div class="sparkle sp-2">+</div><div class="sparkle sp-3">&#x2726;</div><div class="sparkle sp-4">+</div>
   </div>
+  <nav class="top-nav" aria-label="Pages">
+    <a class="nav-btn active" href="index.html" aria-current="page">GIF Maker</a>
+    <a class="nav-btn" href="effects.html" id="nav-effects">Effets</a>
+  </nav>
   <main id="app-main">
     <aside id="panel-left">
       <section class="panel-section" id="section-gif">
@@ -272,6 +276,18 @@
           <button id="te-btn-cancel" class="btn-pe-ghost">Annuler</button>
           <button id="te-btn-apply" class="btn-pe-accent"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Utiliser ce texte</button>
         </div>
+      </div>
+    </div>
+  </div>
+  <!-- LEAVE WARNING MODAL -->
+  <div id="nav-modal" class="modal hidden" role="alertdialog" aria-labelledby="nav-modal-title">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <h3 id="nav-modal-title">Rendu non sauvegard&#x00e9;</h3>
+      <p>Vos modifications ne sont pas export&#x00e9;es. Si vous quittez cette page, elles seront perdues : g&#x00e9;n&#x00e9;rez et t&#x00e9;l&#x00e9;chargez votre rendu avant de partir.</p>
+      <div class="modal-actions nav-modal-actions">
+        <button type="button" id="nav-stay" class="btn-pe-accent">Retour</button>
+        <button type="button" id="nav-go" class="btn-pe-ghost">Y aller</button>
       </div>
     </div>
   </div>

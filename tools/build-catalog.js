@@ -50,11 +50,31 @@ function writeCatalog(entries) {
   fs.writeFileSync(CATALOG_PATH, JSON.stringify(entries, null, 2) + '\n');
 }
 
-module.exports = { GIF_DIR, CATALOG_PATH, readCatalog, buildCatalog, writeCatalog };
+// overlay/*.gif -> overlay/catalog.json (GIFs laid over the imported file on the "Effets" page)
+const OVERLAY_DIR = path.join(__dirname, '..', 'overlay');
+const OVERLAY_CATALOG_PATH = path.join(OVERLAY_DIR, 'catalog.json');
+
+function buildOverlayCatalog() {
+  if (!fs.existsSync(OVERLAY_DIR)) return [];
+  return fs.readdirSync(OVERLAY_DIR)
+    .filter((f) => /\.(gif|png|webp)$/i.test(f))
+    .sort((a, b) => a.localeCompare(b))
+    .map((file) => ({ id: path.basename(file, path.extname(file)), name: path.basename(file, path.extname(file)), file }));
+}
+
+function writeOverlayCatalog(entries = buildOverlayCatalog()) {
+  if (!fs.existsSync(OVERLAY_DIR)) return entries;
+  fs.writeFileSync(OVERLAY_CATALOG_PATH, JSON.stringify(entries, null, 2) + '\n');
+  return entries;
+}
+
+module.exports = { GIF_DIR, CATALOG_PATH, readCatalog, buildCatalog, writeCatalog, buildOverlayCatalog, writeOverlayCatalog };
 
 if (require.main === module) {
   const entries = buildCatalog();
   writeCatalog(entries);
   console.log(`${entries.length} GIF(s) in catalog:`);
   entries.forEach((e) => console.log(`  - ${e.name}${e.transparent ? ' (+ transparent)' : ''}`));
+  const overlays = writeOverlayCatalog();
+  console.log(`${overlays.length} overlay(s): ${overlays.map((o) => o.file).join(', ')}`);
 }

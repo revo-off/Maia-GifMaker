@@ -17,6 +17,10 @@ vérifie les fichiers du projet et affiche un topo. Les aperçus visuels sont da
 1. Déposer `gs<Nom>.gif` (fond vert) dans `gifs/`, et `<Nom>.gif` (écran transparent) si disponible.
 2. `npm run check`. Si besoin, forcer `"chroma"` / `"tolerance"` dans l'entrée de `gifs/catalog.json`. Option `"stopFrame": 24` : à partir de la frame 24 (numérotation de l'affichage, 1 = première) il n'y a plus de suivi ni d'image incrustée.
 
+## Page « Effets » et overlays
+
+`effects.html` : importer un GIF/image, effets (rotation de couleur, noir et blanc, inversion, miroir) et overlays posés dessus. Pour ajouter un overlay, déposer le GIF dans `overlay/` puis lancer `npm run catalog` (ou `npm run check`) qui régénère `overlay/catalog.json`.
+
 ## Ajouter un template ou une police de texte
 
 `texts/templates.json` et `texts/fonts.json` (police Google : `"google"`, fichier local : `"file": "texts/fonts/X.ttf"`).

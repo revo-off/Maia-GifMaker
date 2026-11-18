@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gifmakerbey - Effets</title>
+  <link rel="icon" type="image/png" href="misc/icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="src/css/style.css">
+</head>
+<body class="page-effects">
+  <div class="ambient-scene" aria-hidden="true">
+    <div class="aura-orb orb-primary"><div class="orb-core"></div><div class="orb-lime-rim"></div><div class="orb-star star-1">&#x2726;</div><div class="orb-star star-2">&#x2726;</div></div>
+    <div class="aura-orb orb-secondary"></div><div class="aura-orb orb-tertiary"></div>
+    <div class="liquid-blob blob-1"></div><div class="liquid-blob blob-2"></div><div class="liquid-blob blob-3"></div>
+    <div class="liquid-blob blob-4"></div><div class="liquid-blob blob-5"></div><div class="liquid-blob blob-6"></div>
+    <div class="sparkle sp-1">&#x2726;</div><div class="sparkle sp-2">+</div><div class="sparkle sp-3">&#x2726;</div><div class="sparkle sp-4">+</div>
+  </div>
+  <nav class="top-nav" aria-label="Pages">
+    <a class="nav-btn" href="index.html">GIF Maker</a>
+    <a class="nav-btn active" href="effects.html" aria-current="page">Effets</a>
+  </nav>
+  <main id="app-main">
+    <aside id="panel-left">
+      <section class="panel-section" id="section-overlays">
+        <h2 class="section-title"><span class="step-badge">1</span>Overlays</h2>
+        <div class="gif-gallery" id="overlay-gallery"><div class="gallery-loading"><div class="spinner-small"></div><span>Chargement...</span></div></div>
+        <p class="fx-hint">Cliquez sur un overlay pour l'ajouter, puis d&#x00e9;placez-le, redimensionnez-le ou faites-le pivoter dans l'aper&#x00e7;u.</p>
+      </section>
+      <section class="panel-section hidden" id="section-layers">
+        <h2 class="section-title"><span class="step-badge">2</span>Calques</h2>
+        <div class="fx-layers" id="fx-layers"></div>
+      </section>
+      <div class="panel-bottom">
+        <button id="btn-fx-render" class="btn-render hidden">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span>G&#x00e9;n&#x00e9;rer le rendu</span>
+        </button>
+        <div class="footer-credit">par <span class="credit-author">revo.</span></div>
+      </div>
+    </aside>
+    <div id="canvas-area" class="fx-area">
+      <div class="fx-upload" id="fx-upload" tabindex="0" role="button" aria-label="Importer un GIF ou une image">
+        <input type="file" id="fx-input" accept="image/*,.gif" hidden>
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        <span class="fx-upload-text" id="fx-upload-text">Importer un GIF ou une image</span>
+        <button type="button" class="btn-remove hidden" id="fx-remove" title="Retirer"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div id="canvas-container" class="fx-container">
+        <div id="empty-state">
+          <svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="currentColor" stroke-width="1"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z"/></svg>
+          <h3>Importez un fichier</h3>
+          <p>Ajoutez n'importe quel GIF ou image, puis appliquez des effets et des overlays</p>
+        </div>
+        <div class="fx-stage hidden" id="fx-stage">
+          <canvas id="fx-canvas"></canvas>
+          <div id="fx-overlay">
+            <div id="fx-box" class="hidden">
+              <div class="pe-border"></div>
+              <div class="pe-handle pe-nw" data-h="nw"></div><div class="pe-handle pe-ne" data-h="ne"></div>
+              <div class="pe-handle pe-sw" data-h="sw"></div><div class="pe-handle pe-se" data-h="se"></div>
+              <div class="pe-handle pe-n" data-h="n"></div><div class="pe-handle pe-s" data-h="s"></div>
+              <div class="pe-handle pe-w" data-h="w"></div><div class="pe-handle pe-e" data-h="e"></div>
+              <div class="pe-rotate-arm"><div class="pe-rotate-handle" id="fx-rotate-handle"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="fx-effects" id="fx-effects" role="group" aria-label="Effets">
+        <button type="button" class="fx-chip" data-fx="hue" aria-pressed="false">Rotation de couleur</button>
+        <button type="button" class="fx-chip" data-fx="gray" aria-pressed="false">Noir et blanc</button>
+        <button type="button" class="fx-chip" data-fx="invert" aria-pressed="false">Inversion</button>
+        <button type="button" class="fx-chip" data-fx="mirror" aria-pressed="false">Miroir</button>
+      </div>
+      <div id="playback-bar" class="hidden">
+        <button id="fx-play" class="playback-btn" aria-label="Lecture / pause">
+          <svg id="fx-icon-play" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" class="hidden"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <svg id="fx-icon-pause" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        </button>
+        <div class="frame-info"><span id="fx-counter">0 / 0</span></div>
+        <div class="progress-bar-container"><div class="progress-bar" id="fx-progress"></div></div>
+      </div>
+    </div>
+  </main>
+  <!-- EXPORT MODAL -->
+  <div id="export-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <button id="btn-close-export" class="modal-close" aria-label="Fermer">&times;</button>
+      <div class="modal-icon" id="export-icon"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+      <h3 id="modal-title">Exportation en cours...</h3>
+      <p id="modal-subtitle">Pr&#x00e9;paration des frames</p>
+      <div class="export-progress-track"><div class="export-progress-fill" id="export-progress"></div></div>
+      <span class="export-percent" id="export-percent">0%</span>
+      <div id="modal-actions-done" class="modal-actions hidden">
+        <a id="btn-download" class="btn-download" download="maia-effets.gif">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>T&#x00e9;l&#x00e9;charger le GIF</span>
+        </a>
+      </div>
+    </div>
+  </div>
+  <script src="lib/gifuct-js.min.js"></script>
+  <script src="lib/gif.js"></script>
+  <script src="src/js/palette.js"></script>
+  <script src="src/js/effects.js"></script>
+</body>
+</html>

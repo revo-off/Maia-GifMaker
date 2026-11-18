@@ -297,7 +297,12 @@
     return useTransparent ? baseName : (entry.file.startsWith('gs') ? entry.file : 'gs' + baseName);
   }
 
+  // Unsaved work on this page (lost when leaving for another page)
+  let dirty = false;
+  const markDirty = () => { if (state.selectedGifId) dirty = true; };
+
   async function selectGif(entry) {
+    dirty = false;
     const prev = gifGallery.querySelector('.gif-card.selected');
     if (prev) prev.classList.remove('selected');
 
@@ -331,6 +336,7 @@
   }
 
   async function loadBackground(file) {
+    markDirty();
     const type = file.type;
 
     if (type === 'image/gif') {
@@ -403,6 +409,7 @@
 
   // Uses an already rendered canvas (e.g. the text editor) as a still background
   function setBackgroundFromCanvas(srcCanvas, label) {
+    markDirty();
     if (state.bgType === 'video' && state.bgImage) state.bgImage.pause();
     state.bgType = 'image';
     state.bgImage = srcCanvas;
@@ -987,6 +994,7 @@
       btnDownload.href = state.exportBlobUrl;
       if (modalActionsDone) modalActionsDone.classList.remove('hidden');
 
+      dirty = false;
       setExportIcon(true);
       modalTitle.textContent = 'Rendu terminé !';
       const sizeMB = (blob.size / (1024 * 1024)).toFixed(2);
@@ -1294,6 +1302,7 @@
   }
 
   function duplicateFrame(i) {
+    markDirty();
     const at = i + 1;
     const oldLen = state.gifFrames.length;
     state.keyedFrames.length = oldLen;
@@ -1311,6 +1320,7 @@
   }
 
   function toggleFrame(i) {
+    markDirty();
     state.frameDisabled[i] = !state.frameDisabled[i];
     const card = framesStrip.querySelector(`[data-frame-index="${i}"]`);
     if (card) applyDisabledLook(card, state.frameDisabled[i]);
@@ -1391,6 +1401,7 @@
         const val = Math.max(10, Math.min(9999, parseInt(delayInput.value) || 100));
         delayInput.value = val;
         state.gifDelays[i] = val;
+        markDirty();
       });
 
       delayInput.addEventListener('focus', () => showFrame(i));
@@ -1426,6 +1437,7 @@
       const val = Math.max(10, Math.min(9999, parseInt(bulkDelayInput.value) || 0));
       if (!val) return;
       state.gifDelays = state.gifDelays.map(() => val);
+      markDirty();
       framesStrip.querySelectorAll('.frame-delay-input').forEach((inp) => {
         inp.value = val;
       });
@@ -1732,6 +1744,7 @@
   }
 
   function commitPosEditor() {
+    markDirty();
     state.trackMode = pe.track;
     state.trackOffset = pe.track && pe.offset ? { ...pe.offset } : null;
     state.frameTransforms = pe.track ? pe.draft.map(() => null) : pe.draft.map((t) => (t ? { ...t } : null));
@@ -1935,6 +1948,21 @@
     document.body.appendChild(ripple);
     ripple.addEventListener('animationend', () => ripple.remove());
   });
+
+  $('#section-controls').addEventListener('input', markDirty);
+
+  // Navigation: warn before leaving with unsaved work
+  const navModal = $('#nav-modal');
+  const navLink = $('#nav-effects');
+  navLink.addEventListener('click', (e) => {
+    if (!dirty) return;
+    e.preventDefault();
+    navModal.classList.remove('hidden');
+  });
+  $('#nav-stay').addEventListener('click', () => navModal.classList.add('hidden'));
+  $('#nav-go').addEventListener('click', () => { dirty = false; window.location.href = navLink.href; });
+  $('#nav-modal .modal-backdrop').addEventListener('click', () => navModal.classList.add('hidden'));
+  window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
 
   window.GifMaker = { setBackgroundFromCanvas, getGreenSize };
 

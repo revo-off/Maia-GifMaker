@@ -23,7 +23,7 @@ const { spawnSync } = require('child_process');
 const ROOT = path.join(__dirname, '..');
 const REPORT_DIR = path.join(__dirname, 'reports');
 const Keying = require('../src/js/keying.js');
-const { GIF_DIR, readCatalog, buildCatalog, writeCatalog } = require('./build-catalog.js');
+const { GIF_DIR, readCatalog, buildCatalog, writeCatalog, writeOverlayCatalog } = require('./build-catalog.js');
 
 // ---- Output ------------------------------------------------------------------
 
@@ -472,7 +472,7 @@ function main() {
 
   // Stats go into the catalog (kept in sync, handy for the app)
   const catalogOk = entries.every((e) => e.frames);
-  if (catalogOk) writeCatalog(entries);
+  if (catalogOk) { writeCatalog(entries); writeOverlayCatalog(); }
 
   title('Textes');
   checkTexts();
