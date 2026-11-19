@@ -12,6 +12,17 @@
     "height": 200
   },
   {
+    "id": "gsconduiteVIMaia",
+    "name": "conduiteVIMaia",
+    "file": "gsconduiteVIMaia.gif",
+    "thumbnail": "gsconduiteVIMaia.gif",
+    "transparent": false,
+    "frames": 277,
+    "durationMs": 18470,
+    "width": 200,
+    "height": 200
+  },
+  {
     "id": "gsgangSignMaia",
     "name": "gangSignMaia",
     "file": "gsgangSignMaia.gif",
