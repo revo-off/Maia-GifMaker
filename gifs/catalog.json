@@ -43,5 +43,16 @@
     "durationMs": 10500,
     "width": 200,
     "height": 200
+  },
+  {
+    "id": "gstelMaia",
+    "name": "telMaia",
+    "file": "gstelMaia.gif",
+    "thumbnail": "gstelMaia.gif",
+    "transparent": false,
+    "frames": 106,
+    "durationMs": 4420,
+    "width": 200,
+    "height": 200
   }
 ]
