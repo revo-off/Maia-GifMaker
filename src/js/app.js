@@ -90,6 +90,7 @@
   const valBgStartFrame = $('#val-bg-start-frame');
   const btnUseCurrentFrame = $('#btn-use-current-frame');
   const ctrlBgBeforeStart = $('#ctrl-bg-before-start');
+  const ctrlBgAtEnd = $('#ctrl-bg-at-end');
 
   const emptyState = $('#empty-state');
   const loadingModal = $('#loading-modal');
@@ -567,9 +568,29 @@
     return Array.from({ length: count }, (_, k) => ({ offset: (dur / count) * k, dur: dur / count }));
   }
 
+  function bgAtEnd() {
+    return ctrlBgAtEnd ? ctrlBgAtEnd.value : 'loop';
+  }
+
+  // True when an animated background (gif/video) has finished and must disappear
+  function bgIsGone(elapsedMs) {
+    if (bgAtEnd() !== 'hide') return false;
+    const bgSpeed = parseFloat(ctrlBgSpeed.value) || 1.0;
+    if (state.bgType === 'video' && state.bgImage && state.bgImage.duration > 0) {
+      return (elapsedMs / 1000) * bgSpeed >= state.bgImage.duration;
+    }
+    if (state.bgType === 'gif' && state.bgGifFrames.length > 1) {
+      return elapsedMs * bgSpeed >= state.bgGifDelays.reduce((a, b) => a + b, 0);
+    }
+    return false;
+  }
+
   function bgVideoTime(elapsedMs) {
     const bgSpeed = parseFloat(ctrlBgSpeed.value) || 1.0;
-    return ((elapsedMs / 1000) * bgSpeed) % state.bgImage.duration;
+    const dur = state.bgImage.duration;
+    const t = (elapsedMs / 1000) * bgSpeed;
+    if (bgAtEnd() === 'freeze' && t >= dur) return Math.max(0, dur - 0.05);
+    return t % dur;
   }
 
   // Frame of the background GIF at `elapsedMs`, using its own per-frame delays
@@ -577,6 +598,7 @@
     const delays = state.bgGifDelays;
     const total = delays.reduce((a, b) => a + b, 0);
     const bgSpeed = parseFloat(ctrlBgSpeed.value) || 1.0;
+    if (bgAtEnd() !== 'loop' && elapsedMs * bgSpeed >= total) return delays.length - 1;
     let t = total > 0 ? (elapsedMs * bgSpeed) % total : 0;
     for (let i = 0; i < delays.length; i++) {
       if (t < delays[i]) return i;
@@ -608,7 +630,7 @@
   function resolveBackground(frameIndex, isExport) {
     if (!state.bgType) return null;
     const elapsed = bgElapsedMs(frameIndex);
-    if (elapsed < 0) return null;
+    if (elapsed < 0 || bgIsGone(elapsed)) return null;
 
     if (state.bgType === 'image' && state.bgImage) {
       return {
@@ -1147,6 +1169,14 @@
     });
   }
 
+  if (ctrlBgAtEnd) {
+    ctrlBgAtEnd.addEventListener('change', () => {
+      if (!state.playing && state.gifFrames.length > 0) {
+        compositeFrame(state.currentFrame);
+      }
+    });
+  }
+
   if (ctrlBgBeforeStart) {
     ctrlBgBeforeStart.addEventListener('change', () => {
       if (!state.playing && state.gifFrames.length > 0) {
@@ -1228,6 +1258,50 @@
           dropdownTriggerBeforeStart.setAttribute('aria-expanded', 'false');
         }
       }
+    });
+  }
+
+  // "À la fin" dropdown (same look as "Avant le départ")
+  const dropdownAtEnd = $('#dropdown-bg-at-end');
+  const dropdownTriggerAtEnd = $('#dropdown-trigger-at-end');
+  const dropdownMenuAtEnd = $('#dropdown-menu-at-end');
+  if (dropdownAtEnd && dropdownTriggerAtEnd && dropdownMenuAtEnd && ctrlBgAtEnd) {
+    const closeAtEnd = () => {
+      dropdownMenuAtEnd.classList.add('hidden');
+      dropdownTriggerAtEnd.classList.remove('open');
+      dropdownTriggerAtEnd.setAttribute('aria-expanded', 'false');
+    };
+    dropdownTriggerAtEnd.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (dropdownMenuAtEnd.classList.contains('hidden')) {
+        dropdownMenuAtEnd.classList.remove('hidden');
+        dropdownTriggerAtEnd.classList.add('open');
+        dropdownTriggerAtEnd.setAttribute('aria-expanded', 'true');
+      } else {
+        closeAtEnd();
+      }
+    });
+    dropdownMenuAtEnd.querySelectorAll('.dropdown-item').forEach((item) => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const val = item.dataset.value;
+        ctrlBgAtEnd.value = val;
+        ctrlBgAtEnd.dispatchEvent(new Event('change'));
+        $('#trigger-label-at-end').textContent = item.querySelector('.item-title').textContent;
+        $('#trigger-icon-at-end').innerHTML = item.querySelector('.item-icon').innerHTML;
+        dropdownMenuAtEnd.querySelectorAll('.dropdown-item').forEach((it) => {
+          const sel = it === item;
+          it.classList.toggle('selected', sel);
+          it.setAttribute('aria-selected', sel ? 'true' : 'false');
+        });
+        closeAtEnd();
+      });
+    });
+    document.addEventListener('click', (e) => {
+      if (!dropdownAtEnd.contains(e.target)) closeAtEnd();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeAtEnd();
     });
   }
 

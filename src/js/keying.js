@@ -141,8 +141,9 @@
   // Yellow/olive-green tint: what a translucent green screen looks like once blended
   // with the footage underneath (fade-in of the screen). Skin, hair, grey and white
   // all have red >= green (or no green-over-blue excess), so they are left alone.
+  // Pure yellow (r ≈ g, e.g. bokeh lights) is NOT a tint: green must clearly lead red.
   function isScreenTint(r, g, b) {
-    return g >= r - 8 && g - b > g * 0.18 + 6 && g > 35;
+    return g > r * 1.06 + 2 && g - b > g * 0.18 + 6 && g > 35;
   }
 
   // Binary mask of the screen: close to the key colour, or tinted by it, with small holes filled
@@ -151,13 +152,38 @@
     const h = imageData.height;
     const d = imageData.data;
     let mask = new Uint8Array(w * h);
+    const tint = new Uint8Array(w * h);
+    const stack = [];
 
     for (let p = 0, i = 0; p < mask.length; p++, i += 4) {
       if (d[i + 3] < 50) continue;
       const r = d[i];
       const g = d[i + 1];
       const b = d[i + 2];
-      if (keyer.dist(r, g, b) < keyer.tolerance || isScreenTint(r, g, b)) mask[p] = 1;
+      if (keyer.dist(r, g, b) < keyer.tolerance) {
+        mask[p] = 1;
+        stack.push(p);
+      } else if (isScreenTint(r, g, b)) {
+        tint[p] = 1;
+      }
+    }
+
+    // Tinted pixels only count when connected to real screen pixels (hysteresis),
+    // so isolated yellow/olive details in the footage are never keyed out.
+    while (stack.length) {
+      const p = stack.pop();
+      const x = p % w;
+      const nb = [];
+      if (x > 0) nb.push(p - 1);
+      if (x < w - 1) nb.push(p + 1);
+      if (p >= w) nb.push(p - w);
+      if (p < w * (h - 1)) nb.push(p + w);
+      for (const q of nb) {
+        if (tint[q] && !mask[q]) {
+          mask[q] = 1;
+          stack.push(q);
+        }
+      }
     }
 
     // Fill speckles inside the screen (a pixel surrounded by screen is screen)
