@@ -12,17 +12,6 @@
     "height": 200
   },
   {
-    "id": "gsconduiteVIMaia",
-    "name": "conduiteVIMaia",
-    "file": "gsconduiteVIMaia.gif",
-    "thumbnail": "gsconduiteVIMaia.gif",
-    "transparent": false,
-    "frames": 277,
-    "durationMs": 18470,
-    "width": 200,
-    "height": 200
-  },
-  {
     "id": "gsgangSignMaia",
     "name": "gangSignMaia",
     "file": "gsgangSignMaia.gif",
@@ -41,17 +30,6 @@
     "transparent": false,
     "frames": 181,
     "durationMs": 10500,
-    "width": 200,
-    "height": 200
-  },
-  {
-    "id": "gstelMaia",
-    "name": "telMaia",
-    "file": "gstelMaia.gif",
-    "thumbnail": "gstelMaia.gif",
-    "transparent": false,
-    "frames": 146,
-    "durationMs": 6080,
     "width": 200,
     "height": 200
   }
